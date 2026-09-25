@@ -70,7 +70,8 @@ async function collectTargets(extraPhotos) {
     page.items.forEach((item) => add(item, W.rail));
   }
 
-  const featured = await json('/api/featured?limit=8');
+  // 首页拼贴三格一共用 9 张精选（每格 3 张轮换），与 app.js 里的 limit 对齐
+  const featured = await json('/api/featured?limit=9');
   featured.items.forEach((item) => add(item, W.rail, W.collage, W.hero));
 
   return [...urls];

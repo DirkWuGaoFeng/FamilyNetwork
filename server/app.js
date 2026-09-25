@@ -91,23 +91,51 @@ app.use((req, res, next) => {
 
 /** 首页精选（featured.txt 解析出来的规则），为空时相关接口退化成「最新的 N 张」 */
 let featuredPaths = [];
+/** featured.txt 里 @开头 的行：置顶相册，让它排到相册列表与首页拼贴最前面 */
+let pinnedAlbums = [];
 
 /**
- * 读取 featured.txt：一行一个「路径片段或完整相对路径」，命中的素材按行序出现
+ * 读取 featured.txt：一行一个「路径片段或完整相对路径」，命中的素材按行序出现。
+ * 以 @ 开头的行不是照片规则而是相册名（置顶），单独收走——否则它会被当成
+ * 一段路径去匹配，既选不出照片，也白白占掉精选的一个位置。
  */
 async function loadFeatured() {
   try {
     const text = await fsp.readFile(FEATURED_FILE, 'utf8');
-    featuredPaths = text
+    const lines = text
       .split(/\r?\n/)
       .map((line) => line.trim())
       // 去掉行内注释，与 .galleryignore 同一套语法
       .map((line) => line.replace(/\s+#.*$/, '').trim())
       .filter((line) => line && !line.startsWith('#'));
+    featuredPaths = lines.filter((line) => !line.startsWith('@'));
+    pinnedAlbums = [...new Set(lines
+      .filter((line) => line.startsWith('@'))
+      .map((line) => line.slice(1).trim())
+      .filter(Boolean))];
   } catch {
     featuredPaths = [];
+    pinnedAlbums = [];
   }
   return featuredPaths;
+}
+
+/**
+ * 置顶相册按清单里的顺序排到最前，其余保持原样（按最近时间倒序）。
+ * 清单里写了但不存在的相册名直接被忽略，不报错——手改的文件，名字打错很常见。
+ * @param {Array<object>} albums 索引给出的相册列表（已按最近时间倒序）
+ * @returns {Array<object>}
+ */
+function orderAlbums(albums) {
+  if (!pinnedAlbums.length) {
+    return albums;
+  }
+  const rank = new Map(pinnedAlbums.map((name, i) => [name, i]));
+  // 没置顶的相册统一给一个末位名次：彼此相减就是 0，等于保持原序
+  // （不拿 Infinity 相减，两个 Infinity 会算出 NaN，比较结果就成了噪声）
+  const last = albums.length;
+  const rankOf = (name) => (rank.has(name) ? rank.get(name) : last);
+  return albums.slice().sort((a, b) => rankOf(a.name) - rankOf(b.name));
 }
 
 /**
@@ -263,7 +291,7 @@ app.get('/api/site', (req, res) => {
     rootName: path.basename(config.mediaRoot),
     stats: index.stats,
     years: index.years,
-    albums: index.albums.map((album) => ({
+    albums: orderAlbums(index.albums).map((album) => ({
       name: album.name,
       count: album.count,
       photos: album.photos,
@@ -276,7 +304,9 @@ app.get('/api/site', (req, res) => {
       latest: album.latest,
       cover: album.cover ? decorate(album.cover) : null
     })),
+    // 首页靠这两个字段决定拼贴用什么：featured=false 时它走「一本相册一格」的老路子
     featured: featuredPaths.length > 0,
+    pinned: pinnedAlbums,
     // 有 ffmpeg 才做得了动图，前端据此决定要不要露出那个按钮
     anim: hasFfmpeg(),
     generatedAt: index.generatedAt

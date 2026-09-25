@@ -236,6 +236,26 @@ test('精选清单：没有 featured.txt 就退化成最新照片，有了就按
   }
 });
 
+test('置顶相册：@ 开头的行只管顺序，不被当成精选照片，名字写错也不报错', async () => {
+  const svc = await startTestServer({
+    featured: ['@婚礼', '@不存在的相册', '婚礼/2019-10-06 仪式.png', '@婚礼  # 重复的一行只算一次'].join('\n')
+  });
+  try {
+    const res = await get(svc.base, '/api/site');
+    assert.equal(res.status, 200);
+    // 原样回传写进去的名字（含不存在的），前端只按它排序，名字错了自然排不上，不默默吞掉
+    assert.deepEqual(res.body.pinned, ['婚礼', '不存在的相册'], '重复的 @婚礼 只算一次');
+    // 婚礼本来最新一张是 2020-10-10，排在日常、未分类后面；置顶后被提到横幅位
+    assert.deepEqual(res.body.albums.map((a) => a.name), ['婚礼', '日常', '未分类']);
+    // 只有真正的照片规则才计数，否则 @婚礼 会被当成一段路径去匹配而白占一个位置
+    const feat = await get(svc.base, '/api/featured');
+    assert.equal(feat.body.rules, 1);
+    assert.equal(feat.body.items[0].path, '婚礼/2019-10-06 仪式.png');
+  } finally {
+    await svc.close();
+  }
+});
+
 test('缩略图：照片出 webp 并可以长期缓存', async () => {
   const svc = await startTestServer();
   try {

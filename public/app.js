@@ -560,7 +560,10 @@ function heroSection(site) {
   const section = document.createElement('section');
   section.className = 'hero wrap';
   const years = site.years.map((y) => y.year).sort();
-  const biggest = [...site.albums].sort((a, b) => b.count - a.count);
+  const pinned = site.pinned || [];
+  // 没配精选时的选材：置顶相册优先，其次按张数多的（首屏要给「内容最多」的那几本门面）
+  const rank = (name) => { const i = pinned.indexOf(name); return i < 0 ? 1e6 : i; };
+  const byAlbumOrder = [...site.albums].sort((a, b) => (rank(a.name) - rank(b.name)) || (b.count - a.count));
   section.innerHTML = `
     <div class="hero-grid">
       <div>
@@ -578,25 +581,50 @@ function heroSection(site) {
           <svg viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h22M18 1l4 3-4 3"/></svg></a>
       </div>
       <div class="collage" data-par="0.06" id="collage">
-        <div class="shot a fade" style="--i:0" data-album="${esc(biggest[0] ? biggest[0].name : '')}"></div>
-        <div class="shot b fade" style="--i:1" data-album="${esc(biggest[1] ? biggest[1].name : '')}"></div>
-        <div class="shot c fade" style="--i:2" data-album="${esc(biggest[2] ? biggest[2].name : '')}"></div>
+        <div class="shot a fade" style="--i:0"></div>
+        <div class="shot b fade" style="--i:1"></div>
+        <div class="shot c fade" style="--i:2"></div>
       </div>
     </div>`;
 
-  // 每一格交给一本相册，格内几张照片轮流当主角：看久了像一张会动的照片
-  section.querySelectorAll('.shot').forEach((slot, i) => {
-    const album = slot.dataset.album;
+  const slots = [...section.querySelectorAll('.shot')];
+  // 宽度取预热过的档位（760/620），不然首次打开在现成生成会卡一下
+  const widthOf = (i) => (i === 0 ? 760 : 620);
+  const fromAlbums = () => slots.forEach((slot, i) => {
+    const album = byAlbumOrder[i];
     if (!album) {
       slot.remove();
       return;
     }
-    // 宽度取预热过的档位（760/620），不然首次打开在现成生成会卡一下
-    query({ album, pageSize: 3 }).then((res) => {
-      livingShot(slot, res.items, i === 0 ? 760 : 620, i * 1700);
+    query({ album: album.name, pageSize: 3 }).then((res) => {
+      livingShot(slot, res.items, widthOf(i), i * 1700);
       watchReveals(section);
     }).catch(() => {});
   });
+
+  // 每一格都是「活的照片」：格内几张照片轮流当主角，看久了像一张会动的照片。
+  // 写了精选清单就用清单里的照片（三格均分），否则一本相册占一格
+  if (!site.featured) {
+    fromAlbums();
+    return section;
+  }
+  getJson('/api/featured?limit=9').then((res) => {
+    const items = res.items || [];
+    if (items.length < slots.length) {
+      fromAlbums();
+      return;
+    }
+    const per = Math.ceil(items.length / slots.length);
+    slots.forEach((slot, i) => {
+      const group = items.slice(i * per, (i + 1) * per);
+      if (!group.length) {
+        slot.remove();
+        return;
+      }
+      livingShot(slot, group, widthOf(i), i * 1700);
+    });
+    watchReveals(section);
+  }).catch(fromAlbums);
   return section;
 }
 
