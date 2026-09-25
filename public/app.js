@@ -310,7 +310,7 @@ function bindTilePreview(tile, album) {
   if (!finePointer || reduceMotion) {
     return;
   }
-  const box = tile.querySelector('.pic');
+  const box = tile.querySelector('.mount');
   let layers = [];
   let timer = null;
   let idx = 0;
@@ -323,7 +323,9 @@ function bindTilePreview(tile, album) {
     query({ album: album.name, pageSize: 5 }).then((res) => {
       const extra = res.items.filter((it) => !album.cover || it.path !== album.cover.path).slice(0, 3);
       layers = extra.map((it) => {
-        const img = pic(it, thumbAt(it, 760));
+        // 悬停才取，取到了就得马上开始加载：相片在 mount 里是绝对居中的，
+        // 没量出尺寸之前盒子只有一圈白边那么大，懒加载会把它当成「还没滚进来」
+        const img = pic(it, thumbAt(it, 760), true);
         img.className = 'layer';
         box.append(img);
         return img;
@@ -849,18 +851,22 @@ function albumTile(album, extraClass, order) {
   tile.style.setProperty('--i', String(order % 4));
   const picBox = document.createElement('div');
   picBox.className = 'pic';
+  // 相片是「贴」在封面上的，不是铺满封面：mount 划出贴相片的那块地方，
+  // 悬停换片也往这里放，几张图才会不偏不倚叠在同一处
+  const mount = document.createElement('div');
+  mount.className = 'mount';
   if (album.cover) {
     // 横幅那张要 1400 宽，普通格 1000 宽，缓存键带宽度所以不会互相顶掉
-    picBox.append(pic(album.cover, thumbAt(album.cover, extraClass === 'span12' ? 1400 : 1000)));
+    mount.append(pic(album.cover, thumbAt(album.cover, extraClass === 'span12' ? 1400 : 1000)));
   } else {
     picBox.classList.add('skeleton');
   }
-  // 这行提示是封面图上的悬停角标，必须钉在图片盒子里：
+  // 这行提示是贴在封面下沿的标签，必须钉在封面盒子里：
   // 直接挂在 tile 上时 bottom 对齐的是整格的底（标题之下），会把相册名压住
   const float = document.createElement('div');
   float.className = 'float';
   float.textContent = `${nf.format(album.folderCount)} 个子文件夹 · 最近 ${album.latest ? cnDate(new Date(album.latest).toISOString().slice(0, 10)) : '—'}`;
-  picBox.append(float);
+  picBox.append(mount, float);
   const body = document.createElement('div');
   body.className = 'body';
   body.innerHTML = `<div><span class="name">${esc(album.name)}</span>
@@ -880,14 +886,29 @@ function albumTile(album, extraClass, order) {
         .map((f) => ({ label: f.name, params: { folder: `${album.name}/${f.name}` }, count: f.count })));
     sheetView.open(album.name, `${nf.format(album.count)} 项 · ${album.years.join('、')}`, { album: album.name }, chips);
   };
-  tile.addEventListener('click', open);
+  tile.addEventListener('click', () => flipOpen(tile, open));
   tile.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      open();
+      flipOpen(tile, open);
     }
   });
   return tile;
+}
+
+/**
+ * 点下去先把这本相册的封面转开，再让浮层接上。
+ * 浮层不等翻完：翻到一半就起页，两段动画叠着走，手感和响应速度都不牺牲。
+ * 开了「减少动态效果」就别拖这一拍，直接开。
+ */
+function flipOpen(tile, then) {
+  if (reduceMotion) {
+    then();
+    return;
+  }
+  tile.classList.add('opening');
+  setTimeout(then, 200);
+  setTimeout(() => tile.classList.remove('opening'), 620);
 }
 
 // ---------------------------------------------------------------------------

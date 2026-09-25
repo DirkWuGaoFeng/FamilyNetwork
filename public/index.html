@@ -22,7 +22,8 @@
    四条规则：
    1 界面只做装裱 —— 米白纸底、1px 细线、圆角几乎不用；
    2 一处暖（陶土）一处贵（黄铜），小字一律用可读色变体；
-   3 照片要大 —— 首屏三张错落拼贴、相册横幅 21:9、大图列数只给 3 列；
+   3 照片要大但不裁 —— 首屏三张错落钉着的相片、相册是一本本带书脊的封面（相片贴在封面上，
+     不拿 object-fit:cover 切人），大图列数只给 3 列；
    4 动效有来源 —— 全部是"揭示"（擦入、错位升起、缓慢推近、视差），不做装饰性抖动。
    =========================================================================== */
 :root{
@@ -226,22 +227,58 @@ nav.top a.on::after{right:.5rem}
 .plate .meta{display:flex;justify-content:space-between;align-items:baseline;padding-top:var(--s2);font-size:.8125rem;color:var(--muted)}
 .plate .meta b{font-family:var(--serif);font-weight:400;font-size:1.25rem;color:var(--ink)}
 
-/* 相册：横幅 + 大小格 --------------------------------------------------- */
+/* 相册：一本本立在架子上的相册 ---------------------------------------- */
+/* 封面不再裁照片。以前 21:9 的格配 object-fit:cover，一张竖构图婚纱照只剩半张脸；
+   现在相册是布面封面 + 书脊 + 露出的书页，照片按原比例「贴」在封面上 */
 .sheet-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--s3)}
-.tile{grid-column:span 6;cursor:pointer;position:relative}
-.tile .pic{overflow:hidden;background:var(--paper-2);aspect-ratio:3/2;position:relative}
-.tile .pic img{width:100%;height:100%;object-fit:cover;transition:transform 1s var(--ease)}
-.tile:hover .pic img,.tile:focus .pic img{transform:scale(1.05)}
-.tile.span12{grid-column:span 12}
-.tile.span12 .pic{aspect-ratio:21/9}
+.tile{grid-column:span 6;cursor:pointer;position:relative;--spine:13px;--mat:7px}
+.tile.span12{grid-column:span 12;--mat:9px}
 .tile:nth-child(4n+3),.tile:nth-child(4n+4){grid-column:span 6}
-.tile .pic::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(22,17,14,0) 45%,rgba(22,17,14,.62));opacity:0;transition:opacity .45s var(--ease)}
-.tile:hover .pic::after,.tile:focus .pic::after{opacity:1}
+/* 封面：斜织的布纹 + 从上缘打下来的光；左缘直角（那是书脊），右缘起圆角 */
+.tile .pic{
+  position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:2px 6px 6px 2px;
+  background:
+    repeating-linear-gradient(45deg,rgba(255,255,255,.06) 0 2px,rgba(60,38,22,.05) 2px 4px),
+    linear-gradient(96deg,#e6dbc9,#f2ebdf 46%,#e2d5c1);
+  box-shadow:0 18px 34px -26px rgba(60,38,22,.55);
+  transform-origin:left center;
+  transition:transform .7s var(--ease),box-shadow .7s var(--ease)
+}
+.tile.span12 .pic{aspect-ratio:16/9}
+/* 书脊、折页那道高光、右沿露出的两页纸：三层背景一次画完，不额外加节点 */
+.tile .pic::before{
+  content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:
+    linear-gradient(90deg,rgba(60,38,22,.3),rgba(60,38,22,.05) var(--spine),transparent calc(var(--spine) + 1px)),
+    linear-gradient(90deg,rgba(255,255,255,.6) 0 1px,transparent 1px),
+    linear-gradient(90deg,transparent calc(100% - 6px),#fffdf9 calc(100% - 6px) calc(100% - 4px),#d8ccba calc(100% - 4px) calc(100% - 2px),rgba(60,38,22,.25) calc(100% - 2px))
+}
+/* 拿起来：以书脊为轴，右缘朝人翘一点 */
+@media (hover:hover) and (pointer:fine){
+  .tile:hover .pic,.tile:focus .pic{transform:perspective(1100px) rotateY(-7deg) translateY(-7px);box-shadow:0 30px 52px -26px rgba(60,38,22,.62)}
+}
+/* 翻开：点下去封面真的转开，转的同时浮层已经接上了 */
+.tile.opening .pic{transform:perspective(1100px) rotateY(-74deg) translateX(-5%);opacity:.3;box-shadow:none;
+  transition:transform .44s var(--ease-out),opacity .44s var(--ease-out),box-shadow .44s}
+/* 贴在封面上的那张相片：白卡边 hug 住照片本身——img 的盒子就是照片那么大，
+   所以用 padding 留边而不是 object-fit；再歪不到一度，像手工贴上去的 */
+.tile .mount{position:absolute;inset:9% 10% 12% calc(var(--spine) + 8%);
+  border:1px solid rgba(122,92,49,.2);outline:1px solid rgba(255,255,255,.5);outline-offset:2px}
+/* 居中靠 inset:0 + margin:auto，不拿 flex/grid 居中：auto 尺寸的图片作为弹性/网格项，
+   百分比 max-height 要等到那一行有确定高度才生效，竖构图会直接顶出封面；
+   绝对定位拿的是 mount 这个确定盒子，照片就永远装得下 */
+.tile .mount>img{position:absolute;inset:0;margin:auto;width:auto;height:auto;max-width:100%;max-height:100%;
+  background:var(--surface);padding:var(--mat);
+  box-shadow:0 10px 20px -12px rgba(60,38,22,.7),0 0 0 1px rgba(169,138,91,.22);
+  transform:rotate(-.9deg)
+}
+/* 封面下沿那行小字：以前是压在照片上的白字，现在照片不铺满封面，改成贴的一张标签 */
 .tile .float{
-  position:absolute;left:var(--s3);bottom:var(--s3);right:var(--s3);z-index:2;color:#fff;opacity:0;transform:translateY(10px);
-  transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;font-size:.8125rem;letter-spacing:.06em;
-  /* 压在任意照片上的白字：靠投影而不是背景保底可读 */
-  text-shadow:0 1px 3px rgba(16,12,10,.8)
+  position:absolute;left:calc(var(--spine) + 8%);bottom:var(--s1);z-index:2;color:var(--brass-text);opacity:0;transform:translateY(8px);
+  transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;font-size:.75rem;letter-spacing:.06em;
+  max-width:calc(100% - var(--spine) - 17%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:rgba(255,253,249,.92);border:1px solid rgba(122,92,49,.22);padding:.2rem .6rem;border-radius:2px;
+  box-shadow:0 2px 6px -3px rgba(60,38,22,.5)
 }
 .tile:hover .float,.tile:focus .float{opacity:1;transform:none}
 .tile .body{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);padding-top:var(--s2);border-top:1px solid var(--line-soft);margin-top:var(--s2)}
@@ -251,7 +288,10 @@ nav.top a.on::after{right:.5rem}
 @media (max-width:900px){
   .sheet-grid{gap:var(--s2)}
   .tile,.tile.span12,.tile:nth-child(n){grid-column:span 12}
-  .tile .pic{aspect-ratio:4/3}
+  /* 窄屏上横幅那本也收成正经比例（span12 的选择性比 .tile 高，得一起写），
+     卡纸边距同步收窄，不然小屏上一本相册光白边就占掉画面的一成 */
+  .tile .pic,.tile.span12 .pic{aspect-ratio:4/3}
+  .tile,.tile.span12{--mat:5px}
 }
 
 /* 时间线 ---------------------------------------------------------------- */
@@ -334,14 +374,19 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 .foot code{font-family:ui-monospace,Consolas,monospace;font-size:.75rem;color:var(--ink-2);word-break:break-all}
 
 /* 浮层：相册 / 搜索 ----------------------------------------------------- */
-.sheet-view,.search,.player{position:fixed;inset:0;z-index:60;display:none}
+.sheet-view,.search,.player{position:fixed;inset:0;z-index:60;display:none;perspective:1600px}
 .sheet-view.open,.search.open,.player.open{display:block}
 .scrim{position:absolute;inset:0;background:rgba(28,20,16,.6);backdrop-filter:blur(3px)}
 .panel{
   position:relative;margin:0 auto;height:100%;max-width:1560px;background:var(--paper);
-  display:flex;flex-direction:column;box-shadow:0 0 90px rgba(28,20,16,.4);animation:panel-in .5s var(--ease-out)
+  display:flex;flex-direction:column;box-shadow:0 0 90px rgba(28,20,16,.4);animation:page-turn .55s var(--ease-out);
+  transform-origin:left center
 }
-@keyframes panel-in{from{transform:translateY(3rem);opacity:.3}to{transform:none;opacity:1}}
+/* 翻开下一页：以书脊（左缘）为轴转平。封面刚转开，这一页接着落下来 */
+@keyframes page-turn{from{transform:rotateY(-15deg) translateY(2rem);opacity:.2}to{transform:none;opacity:1}}
+/* 左缘一道书脊阴影：整块内容就是相册的右页，而不是飘在网页上的弹窗 */
+.panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:30px;z-index:6;pointer-events:none;
+  background:linear-gradient(90deg,rgba(60,38,22,.16),rgba(60,38,22,.04) 42%,transparent)}
 .panel-head{display:flex;align-items:flex-end;gap:var(--s3);padding:var(--s4) var(--s4) var(--s3);border-bottom:var(--frame)}
 .panel-head .title{font-family:var(--serif);font-size:clamp(1.5rem,3vw,2.1rem)}
 .panel-head .sub{font-size:.8125rem;color:var(--muted);letter-spacing:.08em}
@@ -352,7 +397,9 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .panel-body{overflow:auto;padding:var(--s4);flex:1}
 .masonry{columns:3 340px;column-gap:var(--s2)}
-.masonry figure{break-inside:avoid;margin:0 0 var(--s2);position:relative;cursor:pointer;overflow:hidden;background:var(--paper-2)}
+.masonry figure{break-inside:avoid;margin:0 0 var(--s2);position:relative;cursor:pointer;overflow:hidden;background:var(--paper-2);
+  /* 贴在右页上的相片：一圈白边 + 一点投影，不靠背景色块区分 */
+  border:1px solid var(--line);border-radius:1px;box-shadow:0 8px 16px -14px rgba(60,38,22,.8)}
 .masonry img{width:100%;height:auto;transition:transform 1s var(--ease)}
 .masonry figure:hover img{transform:scale(1.035)}
 .masonry figcaption{
@@ -481,8 +528,9 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 @keyframes lay-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--from,26px) * -1)) scale(.994)}}
 
 /* 活的照片：首屏拼贴与相册封面的图层溶解 ---------------------------------- */
-.tile .pic .layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.05);transition:opacity 1.2s var(--ease),transform 2.4s var(--ease)}
-.tile .pic .layer.on{opacity:1;transform:none}
+/* 封面的悬停换片：每张都按原比例贴在同一个位置，换的是内容不是裁切 */
+.tile .mount>img.layer{opacity:0;transform:rotate(.8deg) scale(1.05);transition:opacity 1.2s var(--ease),transform 2.4s var(--ease)}
+.tile .mount>img.layer.on{opacity:1;transform:rotate(.8deg)}
 
 /* 滚动驱动：能交给合成器的就不碰主线程 ---------------------------------- */
 @supports (animation-timeline: view()){
@@ -595,7 +643,7 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
 }
 /* 没有 hover 的设备：原本“鼠标扫过才看得到”的信息直接常显 */
 @media (hover:none){
-  .tile .pic::after,.tile .float{opacity:1;transform:none}
+  .tile .float{opacity:1;transform:none}
   .masonry figcaption{opacity:1}
 }
 
@@ -646,7 +694,8 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .scrub,.progress{animation:none !important}
   .collage{--shift:0px !important}
   .print{animation:none;transition:none}
-  .tile .pic .layer{transition:none}
+  .tile .pic{transition:none}
+  .tile .mount>img.layer{transition:none}
   .band>img{animation:none;transform:translate3d(0,calc(var(--shift) * .5),0)}
   .stage .lay,.stage .lay.out{animation:none}
   .stage .lay>img{transition:none}
