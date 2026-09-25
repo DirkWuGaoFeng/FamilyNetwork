@@ -257,9 +257,10 @@ nav.top a.on::after{right:.5rem}
 @media (hover:hover) and (pointer:fine){
   .tile:hover .pic,.tile:focus .pic{transform:perspective(1100px) rotateY(-7deg) translateY(-7px);box-shadow:0 30px 52px -26px rgba(60,38,22,.62)}
 }
-/* 翻开：点下去封面真的转开，转的同时浮层已经接上了 */
-.tile.opening .pic{transform:perspective(1100px) rotateY(-74deg) translateX(-5%);opacity:.3;box-shadow:none;
-  transition:transform .44s var(--ease-out),opacity .44s var(--ease-out),box-shadow .44s}
+/* 翻开：点下去封面真的绕书脊转开，转到一半浮层接着起来。
+   比拿起来更慢、转得更满：一下翻得太快就看不出来是“翻” */
+.tile.opening .pic{transform:perspective(1100px) rotateY(-86deg) translateX(-4%);opacity:0;box-shadow:none;
+  transition:transform .62s var(--ease-out),opacity .5s ease-in,box-shadow .62s}
 /* 贴在封面上的那张相片：白卡边 hug 住照片本身——img 的盒子就是照片那么大，
    所以用 padding 留边而不是 object-fit；再歪不到一度，像手工贴上去的 */
 .tile .mount{position:absolute;inset:9% 10% 12% calc(var(--spine) + 8%);
@@ -281,7 +282,8 @@ nav.top a.on::after{right:.5rem}
   box-shadow:0 2px 6px -3px rgba(60,38,22,.5)
 }
 .tile:hover .float,.tile:focus .float{opacity:1;transform:none}
-.tile .body{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);padding-top:var(--s2);border-top:1px solid var(--line-soft);margin-top:var(--s2)}
+/* 相册名、年份、张数在封面之上（先看名字再看封面），所以分隔线在下方 */
+.tile .body{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);padding-bottom:var(--s2);border-bottom:1px solid var(--line-soft);margin-bottom:var(--s2)}
 .tile .name{font-family:var(--serif);font-size:clamp(1.25rem,2.2vw,1.75rem)}
 .tile .count{font-size:.75rem;letter-spacing:.16em;color:var(--muted)}
 .tile .tags{display:block;font-size:.75rem;color:var(--muted);letter-spacing:.08em;margin-top:.15rem}
@@ -376,14 +378,16 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 /* 浮层：相册 / 搜索 ----------------------------------------------------- */
 .sheet-view,.search,.player{position:fixed;inset:0;z-index:60;display:none;perspective:1600px}
 .sheet-view.open,.search.open,.player.open{display:block}
-.scrim{position:absolute;inset:0;background:rgba(28,20,16,.6);backdrop-filter:blur(3px)}
+.scrim{position:absolute;inset:0;background:rgba(28,20,16,.6);backdrop-filter:blur(3px);animation:fade-in .5s var(--ease-out)}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
 .panel{
   position:relative;margin:0 auto;height:100%;max-width:1560px;background:var(--paper);
-  display:flex;flex-direction:column;box-shadow:0 0 90px rgba(28,20,16,.4);animation:page-turn .55s var(--ease-out);
+  display:flex;flex-direction:column;box-shadow:0 0 90px rgba(28,20,16,.4);animation:page-turn .92s var(--ease-out);
   transform-origin:left center
 }
-/* 翻开下一页：以书脊（左缘）为轴转平。封面刚转开，这一页接着落下来 */
-@keyframes page-turn{from{transform:rotateY(-15deg) translateY(2rem);opacity:.2}to{transform:none;opacity:1}}
+/* 翻开下一页：以书脊（左缘）为轴转平。封面刚转开，这一页接着落下来。
+   中途就亮到全不透明，只剩转平这一段在走——不是一下子拍上来，而是页头自己倒下去 */
+@keyframes page-turn{from{transform:rotateY(-32deg) translateY(1.5rem);opacity:0}45%{opacity:1}to{transform:none;opacity:1}}
 /* 左缘一道书脊阴影：整块内容就是相册的右页，而不是飘在网页上的弹窗 */
 .panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:30px;z-index:6;pointer-events:none;
   background:linear-gradient(90deg,rgba(60,38,22,.16),rgba(60,38,22,.04) 42%,transparent)}

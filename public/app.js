@@ -861,8 +861,8 @@ function albumTile(album, extraClass, order) {
   } else {
     picBox.classList.add('skeleton');
   }
-  // 这行提示是贴在封面下沿的标签，必须钉在封面盒子里：
-  // 直接挂在 tile 上时 bottom 对齐的是整格的底（标题之下），会把相册名压住
+  // 这行提示是贴在封面下沿的标签，得钉在封面盒子里：
+  // 它要跟着封面一起翻走，而且挂到 tile 上就不归封面管了
   const float = document.createElement('div');
   float.className = 'float';
   float.textContent = `${nf.format(album.folderCount)} 个子文件夹 · 最近 ${album.latest ? cnDate(new Date(album.latest).toISOString().slice(0, 10)) : '—'}`;
@@ -872,7 +872,8 @@ function albumTile(album, extraClass, order) {
   body.innerHTML = `<div><span class="name">${esc(album.name)}</span>
     <span class="tags">${album.years.join(' · ')}</span></div>
     <span class="count num">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</span>`;
-  tile.append(picBox, body);
+  // 名字在上、封面在下：先报“这本是谁”，再给你看封面
+  tile.append(body, picBox);
   tile.tabIndex = 0;
   tile.setAttribute('role', 'button');
   tile.setAttribute('aria-label', `打开相册 ${album.name}，${album.count} 项`);
@@ -898,7 +899,8 @@ function albumTile(album, extraClass, order) {
 
 /**
  * 点下去先把这本相册的封面转开，再让浮层接上。
- * 浮层不等翻完：翻到一半就起页，两段动画叠着走，手感和响应速度都不牺牲。
+ * 浮层不等翻完：翻到三成就起页，两段动画叠着走——接得太快看不出是“翻”，
+ * 等它翻完再开又像在等机器。
  * 开了「减少动态效果」就别拖这一拍，直接开。
  */
 function flipOpen(tile, then) {
@@ -907,8 +909,8 @@ function flipOpen(tile, then) {
     return;
   }
   tile.classList.add('opening');
-  setTimeout(then, 200);
-  setTimeout(() => tile.classList.remove('opening'), 620);
+  setTimeout(then, 300);
+  setTimeout(() => tile.classList.remove('opening'), 1100);
 }
 
 // ---------------------------------------------------------------------------
