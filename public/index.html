@@ -222,7 +222,9 @@ nav.top a.on::after{right:.5rem}
 .tile:hover .pic::after,.tile:focus .pic::after{opacity:1}
 .tile .float{
   position:absolute;left:var(--s3);bottom:var(--s3);right:var(--s3);z-index:2;color:#fff;opacity:0;transform:translateY(10px);
-  transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;font-size:.8125rem;letter-spacing:.06em
+  transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;font-size:.8125rem;letter-spacing:.06em;
+  /* 压在任意照片上的白字：靠投影而不是背景保底可读 */
+  text-shadow:0 1px 3px rgba(16,12,10,.8)
 }
 .tile:hover .float,.tile:focus .float{opacity:1;transform:none}
 .tile .body{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);padding-top:var(--s2);border-top:1px solid var(--line-soft);margin-top:var(--s2)}

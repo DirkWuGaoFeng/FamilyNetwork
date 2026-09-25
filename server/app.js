@@ -272,6 +272,8 @@ app.get('/api/site', (req, res) => {
       years: album.years,
       folders: album.folders,
       folderCount: album.folderCount,
+      // 相册级最近时间：首页格子悬停那行“最近 …”要用，漏了前端永远渲染成破折号
+      latest: album.latest,
       cover: album.cover ? decorate(album.cover) : null
     })),
     featured: featuredPaths.length > 0,

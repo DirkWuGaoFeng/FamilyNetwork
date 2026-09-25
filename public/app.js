@@ -781,15 +781,18 @@ function albumTile(album, extraClass, order) {
   } else {
     picBox.classList.add('skeleton');
   }
+  // 这行提示是封面图上的悬停角标，必须钉在图片盒子里：
+  // 直接挂在 tile 上时 bottom 对齐的是整格的底（标题之下），会把相册名压住
   const float = document.createElement('div');
   float.className = 'float';
-  float.innerHTML = `${nf.format(album.folderCount)} 个子文件夹 · 最近 ${album.latest ? cnDate(new Date(album.latest).toISOString().slice(0, 10)) : '—'}`;
+  float.textContent = `${nf.format(album.folderCount)} 个子文件夹 · 最近 ${album.latest ? cnDate(new Date(album.latest).toISOString().slice(0, 10)) : '—'}`;
+  picBox.append(float);
   const body = document.createElement('div');
   body.className = 'body';
   body.innerHTML = `<div><span class="name">${esc(album.name)}</span>
     <span class="tags">${album.years.join(' · ')}</span></div>
     <span class="count num">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</span>`;
-  tile.append(picBox, float, body);
+  tile.append(picBox, body);
   tile.tabIndex = 0;
   tile.setAttribute('role', 'button');
   tile.setAttribute('aria-label', `打开相册 ${album.name}，${album.count} 项`);
