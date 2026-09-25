@@ -111,7 +111,7 @@ nav.top a:hover::after{right:.5rem}
 nav.top a.on{color:var(--ink)}
 nav.top a.on::after{right:.5rem}
 .tools{display:flex;gap:var(--s1);align-items:center;margin-left:var(--s2)}
-.icon-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .25s,border-color .25s,transform .25s}
+.icon-btn{width:36px;height:36px;flex:0 0 auto;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .25s,border-color .25s,transform .25s}
 .icon-btn:hover{background:var(--surface);border-color:var(--brass);transform:translateY(-1px)}
 .icon-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4}
 .burger{display:none}
@@ -370,13 +370,16 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 .stage{position:absolute;inset:0;display:grid;place-items:center}
 .stage img,.stage video{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 30px 90px rgba(0,0,0,.65)}
 .pbar{position:absolute;top:0;left:0;right:0;height:calc(var(--lbbar) + env(safe-area-inset-top));box-sizing:border-box;display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);padding-top:calc(var(--s2) + env(safe-area-inset-top));font-size:.75rem;letter-spacing:.14em;color:var(--on-night-muted);z-index:2}
-.pbar .idx{font-family:var(--serif);color:var(--on-night);font-size:1rem;white-space:nowrap}
+.pbar .idx{font-family:var(--serif);color:var(--on-night);font-size:1rem;white-space:nowrap;flex:0 0 auto}
 .pbar .name{max-width:40ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* .sp 与里面那段“文件夹 · 日期 · 大小”必须钉成单行：flex 项默认 min-width:auto，
    不显式归零的话窄屏下这串字会换行，顶栏从 50px 长到 88px，把图片顶边压住一截 */
 .pbar .sp{margin-left:auto;display:flex;gap:var(--s2);align-items:center;min-width:0}
 .pbar .sp #lbMeta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pbar a,.pbar button{width:34px;height:34px;border:1px solid var(--night-line);border-radius:50%;display:grid;place-items:center;color:var(--on-night)}
+/* flex:0 0 auto 必须写：定了宽高又不拦住伸缩，窄屏上宽度会被挤到小于高度，
+   而 border-radius:50% 是按宽高各算一半的——正方形一扁就变成椭圆。缩不动了
+   就让上面的文字自己省略 */
+.pbar a,.pbar button{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--night-line);border-radius:50%;display:grid;place-items:center;color:var(--on-night)}
 .pbar a:hover,.pbar button:hover{border-color:var(--clay)}
 .pbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4}
 .nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:54px;height:54px;border-radius:50%;border:1px solid var(--night-line);color:var(--on-night);display:grid;place-items:center;background:rgba(34,26,22,.6);transition:.3s;z-index:2}
@@ -542,10 +545,14 @@ nav.top{inset:calc(74px + env(safe-area-inset-top)) 0 auto}
 footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
 .toast{bottom:calc(36px + env(safe-area-inset-bottom))}
 .pbar{padding-top:calc(var(--s2) + env(safe-area-inset-top))}
-.pbar,.stage .lay{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+/* 只能写 max(基础值, 安全区)：写成 max(0px,…) 会把设计内边距直接归零，
+   顶栏按钮会贴到屏幕边缘；而 .lay 不在这条里重复设——它桌面上本来就是 92px（比
+   任何刘海都宽），窄屏由下面那个 media 的 max(10px,…) 接手 */
+.pbar{padding-left:max(var(--s3),env(safe-area-inset-left));padding-right:max(var(--s3),env(safe-area-inset-right))}
 .stage .lay{padding-top:calc(var(--lbbar) + 14px + env(safe-area-inset-top));padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 @media (max-width:700px){
-  .stage .lay{padding-top:calc(var(--lbbar) + 6px + env(safe-area-inset-top));padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-left));padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+  .pbar{padding-left:max(var(--s1),env(safe-area-inset-left));padding-right:max(var(--s1),env(safe-area-inset-right))}
+  .stage .lay{padding-top:calc(var(--lbbar) + 6px + env(safe-area-inset-top));padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right));padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 }
 @supports (height:100svh){
   .collage{height:clamp(360px,58svh,520px)}
@@ -609,7 +616,7 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
 .bgm-label{font-size:.5625rem;letter-spacing:.24em;text-transform:uppercase;color:var(--brass-text)}
 .bgm-title{font-family:var(--serif);font-size:.9375rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:24ch}
 .bgm-actions{flex:0 0 auto;display:flex;align-items:center;gap:.15rem}
-.bgm-btn{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .2s,color .2s}
+.bgm-btn{width:30px;height:30px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .2s,color .2s}
 .bgm-btn:hover{background:var(--paper-2);color:var(--ink)}
 .bgm-btn svg{width:16px;height:16px;fill:currentColor}
 .bgm-btn.muted{color:var(--muted)}
