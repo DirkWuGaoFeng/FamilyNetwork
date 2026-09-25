@@ -186,10 +186,15 @@ npm install           # 依赖有变化时才需要
 pwsh scripts/gallery.ps1 start
 ```
 
-**改了 `.env` 或 `featured.txt`**：`.env` 必须重启；`featured.txt` 只要点页面右上角
-刷新按钮（或 `Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/refresh`）。
+**改了 `.env` 或 `featured.txt`**：`.env` 必须重启；`featured.txt` 不用，点页面右上角
+刷新按钮（或 `Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/refresh`），
+等扫描完再刷新页面。注意：不刷新、不重开的话，服务内存里还是旧清单。
 
-`featured.txt` 里是三类规则，都不需要重启：
+**但重扫不能替代码更新**：`server/` 下的东西改了必须重启
+（`pwsh scripts/gallery.ps1 restart`），除非当初是用 `npm run dev`（`--watch`）起的。
+改完文件页上没动静，先看启动日志里有没有「`featured.txt` …」那几行提示。
+
+`featured.txt` 里是三类规则：
 
 - **一行一条照片规则**（完整路径或路径关键字）→ 首页那三格拼贴，按行序均分，
   前 3 张归左上大格；不满 9 张用最新照片补齐
@@ -200,7 +205,8 @@ pwsh scripts/gallery.ps1 start
   只能挑照片，视频的「封面」是带播放键的占位图
 
 都容忍写错：路径命不中就跳过，`@` 后面的相册不存在就当没写，封面规则命不中就用
-自动挑的那张（相册里最新的一张照片），接口不会报错。
+自动挑的那张（相册里最新的一张照片），接口不会报错 —— 但启动和重扫结束时会把
+落空的规则打到日志（`[featured.txt] …`），不用靠猜。
 首页到底走的哪条路，看 `/api/site` 的 `featured`（照片规则是否非空）、`pinned`
 与 `covers`（哪几本相册的封面是人指定的）。
 

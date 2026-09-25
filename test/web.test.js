@@ -276,6 +276,11 @@ test('相册封面：@相册名=规则 指定用哪张，命不中退回自动�
     // 等号后面那段不算精选规则，否则首页拼贴会被它多占一个位置
     const feat = await get(svc.base, '/api/featured');
     assert.equal(feat.body.rules, 0);
+    // 规则落空时得有人说一句：不然「改了没反应」只能猜是哪一行写错了。
+    // 这里只有 @大宝 那行点不到东西（夹具里没有这本相册），婚礼和日常都该静默
+    const problems = svc.app.__internals.auditFeaturedRules();
+    assert.equal(problems.length, 1, `只该有 @大宝 那行落空：${problems.join(' | ')}`);
+    assert.ok(problems[0].includes('大宝'), problems[0]);
   } finally {
     await svc.close();
   }

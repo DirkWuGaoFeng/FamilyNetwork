@@ -172,6 +172,40 @@ function albumCover(album, items) {
 }
 
 /**
+ * featured.txt 里的规则到底点没点得到东西。
+ * 「改了没反应」是最难查的一种坑：路径打错一个字、或者压根没重启服务，
+ * 站点会安静地按旧样子显示，人完全看不出哪里不对。启动时和刷新时各扫
+ * 一遍，有落空的规则就打到控制台（不抛错，不阻断启动）。
+ * @returns {Array<string>} 每条问题一行话；空数组 = 都没问题
+ */
+function auditFeaturedRules() {
+  const index = scan.getIndex();
+  if (!index || !Array.isArray(index.items)) return [];
+  const hasAlbum = (name) => index.albums.some((album) => album.name === name);
+  const problems = [];
+  for (const name of pinnedAlbums) {
+    // 写了 @相册名=规则 的，下面封面那段会报得更准，这里不重复说
+    if (!albumCovers.has(name) && !hasAlbum(name)) {
+      problems.push(`@${name}：没有这本相册（文件夹名要一模一样）`);
+    }
+  }
+  for (const [name, rule] of albumCovers) {
+    if (!hasAlbum(name)) {
+      problems.push(`@${name}=…：没有这本相册（文件夹名要一模一样）`);
+      continue;
+    }
+    const pool = index.items.filter((item) => item.album === name && item.kind === 'photo');
+    if (!matchByRule(pool, rule)) {
+      problems.push(`@${name}=${rule}：在「${name}」的照片里找不到（视频不能当封面）`);
+    }
+  }
+  for (const path of featuredPaths) {
+    if (!matchByRule(index.items, path)) problems.push(`${path}：索引里找不到这个文件`);
+  }
+  return problems;
+}
+
+/**
  * 置顶相册按清单里的顺序排到最前，其余保持原样（按最近时间倒序）。
  * 清单里写了但不存在的相册名直接被忽略，不报错——手改的文件，名字打错很常见。
  * @param {Array<object>} albums 索引给出的相册列表（已按最近时间倒序）
@@ -465,7 +499,12 @@ app.get('/api/timeline', (req, res) => {
 app.post('/api/refresh', async(req, res, next) => {
   try {
     await loadFeatured();
-    scan.rescan({ force: true }).catch((err) => console.error('[api] 手动刷新失败:', err.message));
+    scan.rescan({ force: true })
+      .then(() => {
+        // 扫完再查：这时索引才是新的，新拷进来的照片不会白白被报「找不到」
+        for (const line of auditFeaturedRules()) console.warn(`[featured.txt] ${line}`);
+      })
+      .catch((err) => console.error('[api] 手动刷新失败:', err.message));
     res.json({ ok: true, message: '已开始重新扫描，稍后刷新页面即可' });
   } catch (err) {
     next(err);
@@ -617,4 +656,4 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 module.exports = app;
 module.exports.app = app;
 // 下面这些不是给浏览器用的，是给测试用的
-module.exports.__internals = { decorate, safeResolve, resolveFeatured, loadFeatured, findByAbsolute, clampPaging, featuredFile: FEATURED_FILE };
+module.exports.__internals = { decorate, safeResolve, resolveFeatured, loadFeatured, auditFeaturedRules, findByAbsolute, clampPaging, featuredFile: FEATURED_FILE };

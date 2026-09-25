@@ -71,7 +71,7 @@ function lanAddresses() {
     process.exit(1);
   }
 
-  const { loadFeatured } = app.__internals;
+  const { loadFeatured, auditFeaturedRules } = app.__internals;
   await loadFeatured();
   await scan.init();
   await detectFfmpeg();
@@ -90,6 +90,11 @@ function lanAddresses() {
     }
     say(`素材目录   ${config.mediaRoot}`);
     say(`索引       ${index.items.length} 个素材 / ${index.albums.length} 本相册`);
+    // featured.txt 里的规则有落空的就说一声。人手改的文件，改完页面上没动静时，
+    // 得有个地方直接告诉你到底是路径打错了还是相册名对不上
+    for (const line of auditFeaturedRules()) {
+      warn(`featured.txt  ${line}`);
+    }
     if (!hasFfmpeg()) {
       warn('未启用 ffmpeg：视频只有占位封面，也做不了循环动图（npm i ffmpeg-static 后重启即可）');
     }
