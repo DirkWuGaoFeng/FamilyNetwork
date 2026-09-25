@@ -322,10 +322,12 @@ function bindTilePreview(tile, album) {
     asked = true;
     query({ album: album.name, pageSize: 5 }).then((res) => {
       const extra = res.items.filter((it) => !album.cover || it.path !== album.cover.path).slice(0, 3);
+      // 横幅那格相片铺满整行，换片还取 760 宽就会小一大圈（相片不放大，按自己的尺寸摆）
+      const layerWidth = tile.classList.contains('span12') ? 1400 : 760;
       layers = extra.map((it) => {
         // 悬停才取，取到了就得马上开始加载：相片在 mount 里是绝对居中的，
         // 没量出尺寸之前盒子只有一圈白边那么大，懒加载会把它当成「还没滚进来」
-        const img = pic(it, thumbAt(it, 760), true);
+        const img = pic(it, thumbAt(it, layerWidth), true);
         img.className = 'layer';
         box.append(img);
         return img;
@@ -856,8 +858,11 @@ function albumTile(album, extraClass, order) {
   const mount = document.createElement('div');
   mount.className = 'mount';
   if (album.cover) {
-    // 横幅那张要 1400 宽，普通格 1000 宽，缓存键带宽度所以不会互相顶掉
-    mount.append(pic(album.cover, thumbAt(album.cover, extraClass === 'span12' ? 1400 : 1000)));
+    // 横幅那张要铺满整行（最宽约 1300px），所以要 1600 宽；普通格 1000 宽，
+    // 缓存键带宽度所以两者不会互相顶掉
+    const cover = pic(album.cover, thumbAt(album.cover, extraClass === 'span12' ? 1600 : 1000));
+    mount.append(cover);
+    if (extraClass === 'span12') fitRowToCover(tile, cover);
   } else {
     picBox.classList.add('skeleton');
   }
@@ -872,18 +877,6 @@ function albumTile(album, extraClass, order) {
   body.innerHTML = `<div><span class="name">${esc(album.name)}</span>
     <span class="tags">${album.years.join(' · ')}</span></div>
     <span class="count num">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</span>`;
-  // 第一本占整行那么宽，光一张相片撑不住：摊成两页，右页题写名字与年份。
-  // 窄屏不摊（那地方放不下），收放交给 CSS，这里只多建一个节点
-  if (extraClass === 'span12') {
-    const page = document.createElement('div');
-    page.className = 'titlepage';
-    // 同一份信息下面那行 .body 里也有（大屏上它是只给读屏的），别念两遍
-    page.setAttribute('aria-hidden', 'true');
-    page.innerHTML = `<h3 class="t">${esc(album.name)}</h3>
-      <p class="y">${album.years.join(' · ')}</p>
-      <p class="c">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</p>`;
-    picBox.append(page);
-  }
   // 名字在上、封面在下：先报“这本是谁”，再给你看封面
   tile.append(body, picBox);
   tile.tabIndex = 0;
@@ -907,6 +900,24 @@ function albumTile(album, extraClass, order) {
     }
   });
   return tile;
+}
+
+/**
+ * 让横幅那一格的高跟着封面相片走。
+ * 索引里没有尺寸（服务端不探图），所以只能等图加载完量一下 naturalWidth；
+ * 量完写进 --cover-ar，CSS 拿它往 aspect-ratio 上一填，相片就能铺满整行。
+ * 上下各夹一道：下限 1.45 防竖构图把这一格顶到一人多高（内容最宽 1360px，
+ * 所以最多约 890px）；上限 2.4 防一张全景把行压成一条缝。
+ * 夹了边界就不会与画面等宽，相片仍旧按原比例摆，只是两边留点空 —— 不裁。
+ */
+function fitRowToCover(tile, img) {
+  const set = () => {
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    const ar = Math.min(Math.max(img.naturalWidth / img.naturalHeight, 1.45), 2.4);
+    tile.style.setProperty('--cover-ar', String(ar));
+  };
+  if (img.complete) set();
+  else img.addEventListener('load', set, { once: true });
 }
 
 /**
