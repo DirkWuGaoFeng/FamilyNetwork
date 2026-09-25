@@ -32,6 +32,23 @@ Invoke-RestMethod http://127.0.0.1:8123/healthz
 `ffmpeg:false` → 视频只有占位封面；`cacheWritable:false` → 磁盘满或权限不对，
 缩略图会现做现丢，页面会明显变慢。
 
+### 背景音乐（`bgm/`）是现读的
+
+素材根目录下的 `bgm/` 会被整夹循环播放（页面左下角那个播放坞）。它**不进上面那条启动流程**：
+既不开机载入，也不生成缓存，所以很好排查。运维视角三件事：
+
+- **放歌不用重启**：`/api/bgm` 每次请求现读目录，拷进去刷新页面就有；文件夹不存在或
+  是空的，播放坞直接不显示，不影响其它功能
+- **不落缓存**：音频走 `/media` 同源直出（带 Range，能边下边拖），不转码不缩略，
+  `.cache` 不会因为它长大；备份时它和照片在同一个目录，一并备走即可
+- **音量与开关存在每台设备自己的浏览器里**（localStorage），换浏览器 / 无痕模式
+  就是回到默认，不用在服务器上找地方改
+
+对应的 `.env` 可选项（不改也能跑，详见 `.env.example`）：`BGM_FOLDER`、`AUDIO_EXTENSIONS`、
+`BGM_VOLUME`。默认**打开**：浏览器不允许无手势外放，所以首次进页碰一下屏幕就起播；
+某台设备上一旦亲手按了暂停，下次进页就不再自动起（想恢复：点一下播放键）。
+浏览器解不了的格式（比如 iOS 上的部分 flac）会自动跳下一首，整夹都失败才提示一句。
+
 ---
 
 ## 2. 后台运行与开机自启
@@ -120,7 +137,7 @@ New-NetFirewallRule -DisplayName "Family Gallery 8123" -Direction Inbound `
 
 | 内容 | 要不要备 | 说明 |
 | --- | --- | --- |
-| **照片与视频本体** | **必须，但不归这个站管** | 站只读它们。请另用系统备份 / 网盘 / 移动硬盘，遵循 3-2-1 |
+| **照片、视频与 `bgm/` 音频本体** | **必须，但不归这个站管** | 站只读它们。请另用系统备份 / 网盘 / 移动硬盘，遵循 3-2-1 |
 | `.env` | 要 | 里面是这台机器的路径与端口 |
 | `featured.txt`、`.galleryignore` | 要 | 手写的规则，重不回来 |
 | `.cache/index.json`、`.cache/durations.json` | 顺手备 | 重扫 3714 个文件要一两分钟，抽帧时长更久 |
@@ -157,7 +174,7 @@ Invoke-RestMethod http://127.0.0.1:8123/healthz
 改代码之前先跑测试，改完再跑一次：
 
 ```powershell
-npm test              # 29 条，零依赖，跑在临时目录里，不碰真实照片
+npm test              # 31 条，零依赖，跑在临时目录里，不碰真实照片
 ```
 
 拉取新版本：
@@ -201,7 +218,7 @@ pwsh scripts/gallery.ps1 start
 | --- | --- |
 | 首屏慢 | `npm run warm`；`THUMB_WIDTH` 从 480 降到 400 也能省一截 |
 | 机械硬盘上整页转圈 | `THUMB_CONCURRENCY=2`（默认 3），并发太高会把盘拖死 |
-| 灯箱大图在手机上慢 | `PREVIEW_WIDTH` 降到 1280 |
+| 灯箱大图在手机上慢 | `PREVIEW_WIDTH` 降到 1280（注意：手机上能捏合放大到 4x，降太狠放大后会发虚） |
 | 图片糊 | `THUMB_QUALITY` 提到 85（文件更大、更慢） |
 | 一次拉走整库 | 有硬上限：`MAX_PAGE_SIZE=500`，接口层夹住，不用改 |
 | 扫描慢 | 索引在 `.cache/index.json`，只要目录没大改，重启是秒级；真正慢的是首次全扫 |
@@ -217,6 +234,8 @@ pwsh scripts/gallery.ps1 start
 | 页面能开、图全裂 | 素材目录不见了（移动硬盘拔了 / 盘符变了）。`npm run rescan` 看扫到几个 |
 | 只有视频没封面 | `ffmpeg:false`。`npm i ffmpeg-static` 重启；公司网装不下来就 `FFMPEG_PATH` 指向系统装好的 ffmpeg |
 | 动图按钮不出现 | 同上，`/api/site` 的 `anim` 是 false 就不显示按钮 |
+| 背景音乐没声 / 播放坞不出现 | 先看 `Invoke-RestMethod http://127.0.0.1:8123/api/bgm` 的 `count`：为 0 就是 `bgm/` 没建、没音频、或扩展名不在 `AUDIO_EXTENSIONS` 里。有曲目则多半是自动播放限制：刷新后要**先碰一下屏幕**才起播；再不行是这台设备上次按过暂停（存在 localStorage，点播放键即可） |
+| 背景音乐在手机上不响而电脑响 | 浏览器自动播放策略只认用户手势，不是 bug；确认已碰过屏幕，再看系统侧静音键与媒体音量 |
 | 改了 `.env` 没生效 | 启动日志里那行「`.env` 已生效：…」有没有你改的键；没有就是那行写错了（等号两边、中文引号、缩进） |
 | 手机能连但很卡 | 通常是 WiFi 信号或路由器性能，不是站点问题：在电脑上开 `http://localhost:8123` 对比 |
 | 日志里一堆 404 `/favicon.ico` | 老浏览器行为。我们已经给了 SVG 图标与 `alternate icon`，还有就忽略 |
@@ -285,6 +304,9 @@ Docker 也行（`legacy/` 里有旧版 compose 文件可参考），但要注意
   `finePointer`），不支持就当没这个功能
 - 动效必须尊重 `prefers-reduced-motion`，`index.html` 末尾那一大块是统一的关闭开关
 - 触屏改动要在 `@media (pointer: coarse)` 下确认点击目标 ≥ 44×44
+- 灯箱手势统一走 Pointer Events（`bindGestures`）：单指滑=换张/下滑关闭，双指捏合与
+  双击缩放，放大态下单指平移。`touch-action` 必须是 `none`（写成 `pan-y` 会让浏览器
+  吃掉第二根手指的事件）；新加浮层手势别与视频的进度条/全屏抢，先 `closest('video,button,a')`
 - 任何新接口都要走 `safeResolve`（路径类）并加测试；`/api` 一律 `no-store`
 - 测试跑在独立临时目录里（`test/helpers/fixtures.js` 造素材），**永远不要**在测试里
   读真实的 `MEDIA_ROOT`
