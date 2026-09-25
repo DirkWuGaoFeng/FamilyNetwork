@@ -146,6 +146,8 @@ let io = null;
 function watchReveals(root = document) {
   if (reduceMotion) {
     root.querySelectorAll('.rv,.wipe,.fade,.scrub').forEach((n) => n.classList.add('in'));
+    // 计数器直接落终值：动画可以省，数字不能不给（初始写法就是终值，这里只是防万一）
+    root.querySelectorAll('[data-count]').forEach((n) => { n.textContent = nf.format(Number(n.dataset.count)); });
     return;
   }
   if (!io) {
@@ -154,11 +156,16 @@ function watchReveals(root = document) {
         if (!entry.isIntersecting) {
           return;
         }
-        entry.target.classList.add('in');
-        const counter = entry.target.querySelector('[data-count]');
-        if (counter) {
-          countUp(counter);
+        if (entry.target.hasAttribute('data-count')) {
+          // 到眼前才归零起滚：没被交叉到的永远是模板里的终值，
+          // 动画链路整条失灵也不会把 0 留在屏幕上
+          entry.target.dataset.from = entry.target.textContent.replace(/[,\s]/g, '');
+          entry.target.textContent = '0';
+          countUp(entry.target);
+          io.unobserve(entry.target);
+          return;
         }
+        entry.target.classList.add('in');
         io.unobserve(entry.target);
       });
     }, { rootMargin: '0px 0px -6% 0px', threshold: 0.08 });
@@ -166,17 +173,27 @@ function watchReveals(root = document) {
   // .scrub 在有滚动时间线的浏览器里交给 CSS，这里不插一杠
   const selector = canSDA ? '.rv:not(.in),.wipe:not(.in),.fade:not(.in)' : '.rv:not(.in),.wipe:not(.in),.fade:not(.in),.scrub:not(.in)';
   root.querySelectorAll(selector).forEach((n) => io.observe(n));
+  // 计数器自己是一条轨道：包在 .facts 这类没有动画名的容器里也得被看到
+  root.querySelectorAll('[data-count]').forEach((n) => io.observe(n));
 }
 
 function countUp(node) {
+  if (node.dataset.counting === '1') {
+    // 滚过的节点再被碰到（重复观察、外部改脏）：直接落终值，不重播也不停在 0
+    node.textContent = nf.format(Number(node.dataset.count)) + (node.dataset.suffix || '');
+    return;
+  }
+  node.dataset.counting = '1';
   const target = Number(node.dataset.count);
+  // 起点：交叉时存进 data-from 的模板终值（带千分位，Number 解出 NaN 就退到 0）
+  const from = Number(node.dataset.from) || 0;
   const suffix = node.dataset.suffix || '';
   const started = performance.now();
   const dur = 1100;
   function frame(now) {
     const t = Math.min(1, (now - started) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
-    node.textContent = nf.format(Math.round(target * eased)) + suffix;
+    node.textContent = nf.format(Math.round(from + (target - from) * eased)) + suffix;
     if (t < 1) {
       requestAnimationFrame(frame);
     }
@@ -552,10 +569,10 @@ function heroSection(site) {
         <p class="lede">这台电脑里 ${nf.format(site.stats.photos)} 张照片、${nf.format(site.stats.videos)} 段视频，
           按文件夹自动分成 ${site.stats.albums} 本相册。不用登录，家里任何一台设备打开都能看。</p>
         <div class="facts">
-          <a href="#/albums"><span class="k num"><span data-count="${site.stats.photos}">0</span></span><span class="v">张照片</span></a>
-          <a href="#/films"><span class="k num"><span data-count="${site.stats.videos}">0</span></span><span class="v">段影像</span></a>
+          <a href="#/albums"><span class="k num"><span data-count="${site.stats.photos}">${nf.format(site.stats.photos)}</span></span><span class="v">张照片</span></a>
+          <a href="#/films"><span class="k num"><span data-count="${site.stats.videos}">${nf.format(site.stats.videos)}</span></span><span class="v">段影像</span></a>
           <a href="#/about"><span class="k num">${humanSize(site.stats.totalBytes)}</span><span class="v">素材体积</span></a>
-          <a href="#/timeline"><span class="k num"><span data-count="${years.length}">0</span></span><span class="v">个年份</span></a>
+          <a href="#/timeline"><span class="k num"><span data-count="${years.length}">${years.length}</span></span><span class="v">个年份</span></a>
         </div>
         <a class="cta" href="#/albums">从相册开始看
           <svg viewBox="0 0 24 8" aria-hidden="true"><path d="M0 4h22M18 1l4 3-4 3"/></svg></a>
