@@ -256,6 +256,31 @@ test('置顶相册：@ 开头的行只管顺序，不被当成精选照片，名
   }
 });
 
+test('相册封面：@相册名=规则 指定用哪张，命不中退回自动挑的那张', async () => {
+  const svc = await startTestServer({
+    featured: ['@婚礼=婚礼/2019-10-06 仪式.png', '@日常=午饭', '@大宝=根本不存在的东西'].join('\n')
+  });
+  try {
+    const res = await get(svc.base, '/api/site');
+    assert.equal(res.status, 200);
+    const byName = new Map(res.body.albums.map((a) => [a.name, a]));
+    // 不指定时婚礼的封面是最新那张（摆拍/mmexport…）；指定了就能挑相册里任意一张
+    assert.equal(byName.get('婚礼').cover.path, '婚礼/2019-10-06 仪式.png');
+    // 规则只写文件名的一小段也算命中
+    assert.equal(byName.get('日常').cover.path, '日常/午饭.png');
+    // 没指定的相册走自动挑的那张，不受别人那行影响
+    assert.equal(byName.get('未分类').cover.path, 'IMG_rootless.png');
+    // 指定封面顺带置顶（不然在已有的 @婚礼 行后面加个 =… 会把置顶弄丢）
+    assert.deepEqual(res.body.albums.map((a) => a.name), ['婚礼', '日常', '未分类']);
+    assert.deepEqual(res.body.covers, ['婚礼', '日常', '大宝'], '哪几本是人指定的，回传便于排查');
+    // 等号后面那段不算精选规则，否则首页拼贴会被它多占一个位置
+    const feat = await get(svc.base, '/api/featured');
+    assert.equal(feat.body.rules, 0);
+  } finally {
+    await svc.close();
+  }
+});
+
 test('缩略图：照片出 webp 并可以长期缓存', async () => {
   const svc = await startTestServer();
   try {

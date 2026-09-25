@@ -93,6 +93,8 @@ app.use((req, res, next) => {
 let featuredPaths = [];
 /** featured.txt 里 @开头 的行：置顶相册，让它排到相册列表与首页拼贴最前面 */
 let pinnedAlbums = [];
+/** @相册名=规则 的行：给某本相册指定封面（置顶也一并生效） */
+let albumCovers = new Map();
 
 /**
  * 读取 featured.txt：一行一个「路径片段或完整相对路径」，命中的素材按行序出现。
@@ -109,15 +111,64 @@ async function loadFeatured() {
       .map((line) => line.replace(/\s+#.*$/, '').trim())
       .filter((line) => line && !line.startsWith('#'));
     featuredPaths = lines.filter((line) => !line.startsWith('@'));
-    pinnedAlbums = [...new Set(lines
-      .filter((line) => line.startsWith('@'))
-      .map((line) => line.slice(1).trim())
-      .filter(Boolean))];
+    const at = lines.filter((line) => line.startsWith('@')).map((line) => line.slice(1));
+    // @相册名 → 只置顶；@相册名=规则 → 置顶并指定封面。同一个相册写几行
+    // 只算第一条（与精选规则「命中即取第一张」同一个脾气，免得改一行牵动另一行）
+    pinnedAlbums = [...new Set(at.map((seg) => seg.split('=')[0].trim()).filter(Boolean))];
+    const covers = new Map();
+    for (const seg of at) {
+      const eq = seg.indexOf('=');
+      const name = eq < 0 ? '' : seg.slice(0, eq).trim();
+      const rule = eq < 0 ? '' : seg.slice(eq + 1).trim();
+      if (name && rule && !covers.has(name)) {
+        covers.set(name, rule);
+      }
+    }
+    albumCovers = covers;
   } catch {
     featuredPaths = [];
     pinnedAlbums = [];
+    albumCovers = new Map();
   }
   return featuredPaths;
+}
+
+/**
+ * 一条规则在给定素材里找第一个命中的：完整相对路径、文件名，或路径里的片段
+ * （写「婚纱照/郭丽君」也能命中，取的是排在前面的那张）。
+ * @param {Array<object>} pool 候选素材
+ * @param {string} rule 规则原文
+ * @param {Set<string>} [skip] 已经用过的路径，不再重复上榜
+ * @returns {object|null}
+ */
+function matchByRule(pool, rule, skip) {
+  const needle = rule.toLowerCase();
+  return pool.find((item) => (!skip || !skip.has(item.path))
+    && (item.path.toLowerCase() === needle
+      || item.path.toLowerCase().includes(needle)
+      || item.fileName.toLowerCase() === needle)) || null;
+}
+
+/**
+ * 一本相册用哪张当封面。featured.txt 里 @相册名=规则 指定过就用那张，
+ * 否则用扫描时挑的（最新的一张）。规则只在这本相册自己的照片里找，
+ * 命不中不报错、退回自动挑的那张 —— 这是人手改的文件，路径打错太常见。
+ * 只许挑照片：视频的封面图是一张带播放按钮的占位图，摆在本相册的位置上很难看。
+ * @param {object} album 索引里的相册条目
+ * @param {Array<object>} items 索引里的全部素材
+ * @returns {object|null}
+ */
+function albumCover(album, items) {
+  const rule = albumCovers.get(album.name);
+  if (rule) {
+    const pool = items.filter((item) => item.album === album.name && item.kind === 'photo')
+      .sort((a, b) => b.time - a.time);
+    const hit = matchByRule(pool, rule);
+    if (hit) {
+      return hit;
+    }
+  }
+  return album.cover || null;
 }
 
 /**
@@ -150,11 +201,7 @@ function resolveFeatured(limit) {
   const used = new Set();
 
   for (const rule of featuredPaths) {
-    const needle = rule.toLowerCase();
-    const hit = photos.find((item) => !used.has(item.path)
-      && (item.path.toLowerCase() === needle
-        || item.path.toLowerCase().includes(needle)
-        || item.fileName.toLowerCase() === needle));
+    const hit = matchByRule(photos, rule, used);
     if (hit) {
       picked.push(hit);
       used.add(hit.path);
@@ -291,22 +338,28 @@ app.get('/api/site', (req, res) => {
     rootName: path.basename(config.mediaRoot),
     stats: index.stats,
     years: index.years,
-    albums: orderAlbums(index.albums).map((album) => ({
-      name: album.name,
-      count: album.count,
-      photos: album.photos,
-      videos: album.videos,
-      size: album.size,
-      years: album.years,
-      folders: album.folders,
-      folderCount: album.folderCount,
-      // 相册级最近时间：首页格子悬停那行“最近 …”要用，漏了前端永远渲染成破折号
-      latest: album.latest,
-      cover: album.cover ? decorate(album.cover) : null
-    })),
-    // 首页靠这两个字段决定拼贴用什么：featured=false 时它走「一本相册一格」的老路子
+    albums: orderAlbums(index.albums).map((album) => {
+      // 封面可能被 featured.txt 的 @相册名=规则 换过，不直接拿索引里挑的那张
+      const cover = albumCover(album, index.items);
+      return {
+        name: album.name,
+        count: album.count,
+        photos: album.photos,
+        videos: album.videos,
+        size: album.size,
+        years: album.years,
+        folders: album.folders,
+        folderCount: album.folderCount,
+        // 相册级最近时间：首页格子悬停那行“最近 …”要用，漏了前端永远渲染成破折号
+        latest: album.latest,
+        cover: cover ? decorate(cover) : null
+      };
+    }),
+    // 首页靠这几个字段决定拼贴用什么：featured=false 时它走「一本相册一格」的老路子
     featured: featuredPaths.length > 0,
     pinned: pinnedAlbums,
+    // 哪几本相册的封面是人指定的（只看键，规则原文不外泄）：排查「封面怎么不对」用
+    covers: [...albumCovers.keys()],
     // 有 ffmpeg 才做得了动图，前端据此决定要不要露出那个按钮
     anim: hasFfmpeg(),
     generatedAt: index.generatedAt
