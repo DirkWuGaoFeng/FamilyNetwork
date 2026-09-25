@@ -174,7 +174,7 @@ Invoke-RestMethod http://127.0.0.1:8123/healthz
 改代码之前先跑测试，改完再跑一次：
 
 ```powershell
-npm test              # 31 条，零依赖，跑在临时目录里，不碰真实照片
+npm test              # 32 条，零依赖，跑在临时目录里，不碰真实照片
 ```
 
 拉取新版本：
@@ -188,6 +188,15 @@ pwsh scripts/gallery.ps1 start
 
 **改了 `.env` 或 `featured.txt`**：`.env` 必须重启；`featured.txt` 只要点页面右上角
 刷新按钮（或 `Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/refresh`）。
+
+`featured.txt` 里是两类规则，都不需要重启：
+
+- **一行一条照片规则**（完整路径或路径关键字）→ 首页那三格拼贴，按行序均分，
+  前 3 张归左上大格；不满 9 张用最新照片补齐
+- **`@相册名`** → 置顶，把这本相册顶到「相册」页横幅位与首页相册区最前
+
+两类都容忍写错：路径命不中就跳过，`@` 后面的相册不存在就当没写，接口不会报错。
+首页到底走的哪条路，看 `/api/site` 的 `featured`（照片规则是否非空）与 `pinned`。
 
 **换素材目录 / 换机器** checklist：
 
