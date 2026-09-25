@@ -316,10 +316,27 @@ nav.top a.on::after{right:.5rem}
 .strip .pic img{width:100%;height:100%;object-fit:cover;transition:transform .9s var(--ease)}
 .strip .pic:hover img{transform:scale(1.07)}
 .strip .pic.more::after{content:attr(data-more);position:absolute;inset:0;display:grid;place-items:center;background:rgba(22,17,14,.58);color:#fff;font-family:var(--serif);font-size:1.25rem;letter-spacing:.06em}
+/* 首页「按月翻」那一排：月份压在图下方，不另起一行占地方 */
+.strip .pic .cap{position:absolute;left:0;right:0;bottom:0;padding:1.1rem .45rem .35rem;
+  font-size:.6875rem;letter-spacing:.08em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(rgba(22,17,14,0),rgba(22,17,14,.78));text-shadow:0 1px 6px rgba(22,17,14,.6)}
 @media (max-width:980px){
   .tl{grid-template-columns:1fr;gap:var(--s4)}
-  .years{position:static;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:var(--frame);padding:0 0 var(--s2);max-height:none}
-  .years button{flex:0 0 auto;padding-right:var(--s3);font-size:1.15rem}
+  /* 年份在手机上做成能横滑的药丸条，并且贴在顶栏下面：以前它长得就像一行正文
+     （2025 …… 1），又跟着页面滚走，手机上根本看不出这里能选时间 */
+  .years{position:sticky;flex-direction:row;gap:var(--s1);align-items:center;
+    overflow-x:auto;overscroll-behavior-x:contain;border-right:0;border-bottom:var(--frame);
+    padding:var(--s2) 0;max-height:none;background:var(--paper);z-index:4;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 22px),transparent);
+    mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 22px),transparent)}
+  /* 手机上导航收进了汉堡菜单，头顶只剩 74px 那条 header，贴的位置要比上面
+     那条安全区规则（.years{top:110px+safe}）更具体才抢得过 */
+  .tl .years{top:calc(74px + env(safe-area-inset-top))}
+  .years button{width:auto;flex:0 0 auto;display:inline-flex;align-items:baseline;gap:.45rem;
+    padding:.42rem .9rem;font-size:.95rem;border:1px solid var(--line);border-radius:999px}
+  .years button:hover{transform:none}
+  .years button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .years button.on .num{color:var(--brass-text)}
   .month{grid-template-columns:1fr;gap:var(--s2);padding-bottom:var(--s4)}
   .strip{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
@@ -415,7 +432,19 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
   background:linear-gradient(rgba(22,17,14,.05),rgba(22,17,14,.85));opacity:0;transition:opacity .35s;text-shadow:0 1px 8px rgba(22,17,14,.6)
 }
 .masonry figure:hover figcaption,.masonry figure:focus-within figcaption{opacity:1}
-@media (max-width:900px){.masonry{columns:2 190px}}
+/* 手机上浮层顶部要省着用：筛选项绕成几排会把照片挤掉半屏 */
+@media (max-width:900px){
+  .masonry{columns:2 190px}
+  /* 一行摆不完就横着滑，左右渐隐提示这里还能滑 */
+  .chips{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;
+    padding-top:var(--s1);padding-bottom:var(--s1);
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 22px),transparent);
+    mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 22px),transparent)}
+  .chip{flex:0 0 auto}
+  /* 只改上下：左右那两下子归安全区那条规则管 */
+  .panel-head{padding-top:var(--s3);padding-bottom:var(--s2)}
+  .panel-body{padding-top:var(--s2);padding-bottom:var(--s2)}
+}
 
 /* 状态：骨架 / 空 / 错误 ------------------------------------------------ */
 .skeleton{background:linear-gradient(90deg,var(--paper-2),var(--surface-2),var(--paper-2));background-size:300% 100%;animation:shimmer 1.6s infinite}
@@ -642,12 +671,15 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .pbar a,.pbar button{width:44px;height:44px}
   .chip{padding:.6rem 1.05rem}
   .more button{padding:.9rem 2.2rem}
-  .years button{padding:.7rem 0}
+  /* 只抬上下，不动左右：窄屏上年份是药丸（上面那条定了左右内边距），
+     这里写 padding 简写会把药丸的左右撑掉，字贴到边框上 */
+  .years button{padding-top:.7rem;padding-bottom:.7rem}
   .strip-bar button{width:66px;height:46px}
-  .rail,.strip,.strip-bar,.years{scrollbar-width:none}
-  .rail::-webkit-scrollbar,.strip::-webkit-scrollbar,.strip-bar::-webkit-scrollbar,.years::-webkit-scrollbar{display:none}
-  /* 悬停才出现的东西在触屏上永远不出现，那就别占着位 */
-  .month .lab .go{display:none}
+  .rail,.strip,.strip-bar,.years,.chips{scrollbar-width:none}
+  .rail::-webkit-scrollbar,.strip::-webkit-scrollbar,.strip-bar::-webkit-scrollbar,.years::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
+  /* 悬停才出现的东西在触屏上永远不出现：那就让它常显，
+     不然是把「打开整月」这个唯一的提示藏掉了 */
+  .month .lab .go{opacity:1;transform:none;border:1px solid var(--line);border-radius:999px;padding:.34rem .7rem}
 }
 /* 没有 hover 的设备：原本“鼠标扫过才看得到”的信息直接常显 */
 @media (hover:none){

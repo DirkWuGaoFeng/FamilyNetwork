@@ -67,6 +67,23 @@ function cnMonth(iso) {
   return `${y} 年 ${Number(m)} 月`;
 }
 
+/**
+ * 把横条里的某一项滑到中间（年份条、筛选项都用它）。
+ * 手机上这些条会横着溢出，点了哪颗却可能还在屏幕外面，选完像没选。
+ * 拿 rect 差值算而不是 offsetLeft：后者是相对 offsetParent 的，这些容器没定位置。
+ */
+function centerInRail(box, node, instant) {
+  if (!node || box.scrollWidth <= box.clientWidth) {
+    return; // 没溢出就不动，免得桌面上（竖排的年份条）白抽一下
+  }
+  const b = box.getBoundingClientRect();
+  const n = node.getBoundingClientRect();
+  box.scrollBy({
+    left: (n.left - b.left) - (b.width - n.width) / 2,
+    behavior: instant || reduceMotion ? 'auto' : 'smooth'
+  });
+}
+
 function mmss(seconds) {
   const s = Math.max(0, Math.round(seconds));
   const m = Math.floor(s / 60);
@@ -556,7 +573,7 @@ async function renderHome(page) {
 
   page.append(bandSection(latest.items[3] || latest.items[0]));
   page.append(albumsTeaser(site.albums));
-  page.append(yearSnippet());
+  page.append(monthStrip());
 }
 
 /** 首屏：左边大字，右边三张「活的照片」拼贴 */
@@ -812,35 +829,63 @@ function albumsTeaser(albums) {
   return section;
 }
 
-/** 最近三个月的小片段，让首页有个「时间的样子」 */
-function yearSnippet() {
+/**
+ * 首页最下面那一排「按月翻」：最近 8 个月，每月一格，格子上压着月份与数量。
+ * 以前这里只放最近那个月的照片，而家里最近一个月往往只充进一张，
+ * 整排就空得只剩一个角。改成按月铺：永远排得满，而且与上面那条「最新的
+ * 日子」不撞车（那个是单张相片，这个是月份入口）。数据全部来自 /api/timeline，
+ * 一个请求就够，不用一个月查一次。
+ */
+function monthStrip() {
   const section = document.createElement('section');
   section.className = 'wrap rv';
-  section.innerHTML = `<div class="head"><h2 class="h2">这个月的日子<span>THIS MONTH</span></h2>
+  section.innerHTML = `<div class="head"><h2 class="h2">按月翻<span>MONTHS</span></h2>
     <a class="link" href="#/timeline">完整时间线 →</a></div>
     <div class="strip" id="snippet"></div>`;
   const strip = section.querySelector('#snippet');
   skeleton(4, strip);
   getJson('/api/timeline').then((data) => {
-    const bucket = data.months[0];
-    if (!bucket) {
-      strip.innerHTML = '';
+    const buckets = data.months.slice(0, 8);
+    if (!buckets.length) {
+      section.remove(); // 空库：连标题一起撤掉，别留个空壳
       return;
     }
-    section.querySelector('.head h2').innerHTML = `${cnMonth(bucket.month)}<span>${nf.format(bucket.count)} 项</span>`;
-    return query({ month: bucket.month, pageSize: 8 }).then((res) => {
-      strip.innerHTML = '';
-      res.items.forEach((item, i) => {
-        const cell = document.createElement('div');
-        cell.className = `pic ${revealClass()}`;
-        cell.style.setProperty('--i', String(i));
-        const img = pic(item, thumbAt(item, 620));
-        cell.append(img);
-        cell.addEventListener('click', () => player.open(res.items, i, img));
-        strip.append(cell);
+    // 不满一排时（新库只有一两个月）把格子放大占满整行，不要留半排空
+    if (buckets.length < 4) {
+      strip.style.gridTemplateColumns = `repeat(${buckets.length}, minmax(0, 1fr))`;
+    }
+    // 格子数按实际列数向下取整：桌面 4 列、手机 3 列，8 格在手机上会剩两格收尾，
+    // 最后一排缺个角比少一排难看得多
+    const cols = getComputedStyle(strip).gridTemplateColumns.split(' ').length || buckets.length;
+    const shown = buckets.slice(0, Math.max(cols, Math.floor(buckets.length / cols) * cols));
+    strip.innerHTML = '';
+    shown.forEach((bucket, i) => {
+      const cell = document.createElement('div');
+      cell.className = `pic ${revealClass()}`;
+      cell.style.setProperty('--i', String(i));
+      cell.tabIndex = 0;
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('aria-label', `打开 ${cnMonth(bucket.month)}，${bucket.count} 项`);
+      const open = () => sheetView.open(cnMonth(bucket.month),
+        `${nf.format(bucket.count)} 项 · ${bucket.photos} 照片${bucket.videos ? ` / ${bucket.videos} 视频` : ''}`,
+        { month: bucket.month });
+      cell.addEventListener('click', open);
+      cell.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open();
+        }
       });
-      watchReveals(strip);
+      if (bucket.cover) {
+        cell.append(pic(bucket.cover, thumbAt(bucket.cover, 620)));
+      }
+      const cap = document.createElement('span');
+      cap.className = 'cap';
+      cap.textContent = `${cnMonth(bucket.month)} · ${nf.format(bucket.count)} 项`;
+      cell.append(cap);
+      strip.append(cell);
     });
+    watchReveals(strip);
   }).catch(() => {
     strip.innerHTML = '';
   });
@@ -1063,6 +1108,7 @@ async function renderTimeline(page) {
       btn.setAttribute('aria-selected', 'true');
       drawMonths(year.year);
       monthList.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      centerInRail(yearList, btn);
     });
     yearList.append(btn);
   });
@@ -1255,6 +1301,8 @@ const sheetView = {
       box.append(btn);
     });
     box.hidden = chips.length === 0;
+    // 筛选项在手机上是一行可以横滑的药丸：刚进来就把选中的那颗滑到看得见的地方
+    centerInRail(box, box.querySelector('.chip.on'), true);
   },
   async load(params, append) {
     const body = el('sheetBody');
