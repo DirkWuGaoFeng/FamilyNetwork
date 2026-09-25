@@ -269,7 +269,7 @@ window.addEventListener('resize', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * 悬停小图 → 旁边浮出一张大的。
+ * 悬停小图 → 旁边浮出一张大的；悬停视频 → 放一小段原片。
  * 位置交给 CSS 锚点定位：谁被悬停谁就是锚点，靠边缘时 position-try 自动翻边；
  * 不支持锚点的浏览器退回跟指针坐标
  */
@@ -278,7 +278,15 @@ function bindLoupe(cell, item, img) {
     return;
   }
   const node = el('loupe');
+  const vid = node.querySelector('video');
   let raf = 0;
+  let playTimer = 0;
+  const stopClip = () => {
+    clearTimeout(playTimer);
+    playTimer = 0;
+    vid.pause();
+    node.classList.remove('video');
+  };
   const show = () => {
     node.querySelector('img').src = thumbAt(item, 620);
     node.querySelector('.t').textContent = `${item.folder || item.album} · ${cnDate(item.date)}`;
@@ -290,10 +298,27 @@ function bindLoupe(cell, item, img) {
       node.style.left = `${Math.round(r.right + 12)}px`;
       node.style.top = `${Math.round(Math.min(r.top, window.innerHeight - 240))}px`;
     }
+    if (item.kind === 'video') {
+      node.classList.add('video');
+      // 海报图先垫上：那 260ms 里不至于是一块黑
+      vid.poster = thumbAt(item, 620);
+      // 慢半拍再起：鼠标一路扫过去时不该每格都去拉一次大文件。
+      // 只能静音：家里人在客厅翻相册，突然有声会吓人
+      playTimer = setTimeout(() => {
+        if (vid.dataset.path !== item.path) {
+          vid.src = item.url;
+          vid.dataset.path = item.path;
+        }
+        vid.play().catch(() => { /* 起不了播就继续显示海报图，不报错 */ });
+      }, 260);
+    } else {
+      stopClip();
+    }
   };
   const hide = () => {
     node.classList.remove('on');
     img.style.removeProperty('anchor-name');
+    stopClip();
     if (raf) {
       cancelAnimationFrame(raf);
       raf = 0;
@@ -1026,9 +1051,67 @@ async function renderTimeline(page) {
   const yearList = tl.querySelector('#yearList');
   const monthList = tl.querySelector('#monthList');
 
+  /**
+   * 这一年的小结 + 12 个月的密度条。
+   * 柱子高度按「本年最忙的那个月」归一，没素材的月份留一道细线 ——
+   * 空档也是这一年的样子，不假装它满。点柱子直接开那个月的浮层。
+   */
+  function drawYearSum(year, buckets) {
+    if (!buckets.length) {
+      return;
+    }
+    const BAR_MAX = 88;
+    const byMonth = new Map(buckets.map((b) => [b.month, b]));
+    const max = Math.max(...buckets.map((b) => b.count));
+    const busiest = buckets.reduce((a, b) => (b.count > a.count ? b : a), buckets[0]);
+    const total = buckets.reduce((n, b) => n + b.count, 0);
+    const photos = buckets.reduce((n, b) => n + b.photos, 0);
+    const videos = total - photos;
+    // 只有一个月的年份说「最忙的是」很怪，全照片的年份也不必报「0 视频」
+    const busiestPart = buckets.length > 1
+      ? `，最忙的是 <b>${cnMonth(busiest.month)}</b>（${nf.format(busiest.count)} 项）` : '';
+    const kind = [photos ? `${nf.format(photos)} 照片` : '', videos ? `${nf.format(videos)} 视频` : '']
+      .filter(Boolean).join(' / ');
+    const box = document.createElement('div');
+    box.className = 'yearsum';
+    box.innerHTML = `<p class="ys-line"><span class="yr num">${year}</span> 一共 <b>${nf.format(total)}</b> 项，
+        ${buckets.length} 个月里有动静${busiestPart}
+        <span class="kind">${kind}</span></p>
+      <div class="bars" role="group" aria-label="${year} 年各月数量"></div>`;
+    const bars = box.querySelector('.bars');
+    for (let m = 1; m <= 12; m += 1) {
+      const key = `${year}-${String(m).padStart(2, '0')}`;
+      const bucket = byMonth.get(key);
+      const bar = document.createElement(bucket ? 'button' : 'div');
+      bar.className = `bar${bucket ? '' : ' off'}`;
+      // 高度在 JS 里算成 px：CSS 的百分比是相对整列的，下面那两行标签会把它顶出去。
+      // 用开方而不是正比：像 2019 那样某个月吃掉一千张时，正比会把其他月压成几个像素，
+      // 看不出差别；开方仍然「多的更高」，只是把差距压回可读范围
+      // （柱子下面只编月份，具体数字悬停时才浮出来，title 里也有一份）
+      bar.style.setProperty('--h', bucket
+        ? `${Math.max(3, Math.round(Math.sqrt(bucket.count / max) * BAR_MAX))}px`
+        : '2px');
+      bar.style.setProperty('--i', String(m - 1));
+      bar.innerHTML = `<i></i><span class="n">${bucket ? nf.format(bucket.count) : ''}</span><span class="m">${m}</span>`;
+      if (bucket) {
+        bar.type = 'button';
+        bar.title = `${cnMonth(key)} · ${nf.format(bucket.count)} 项`;
+        bar.setAttribute('aria-label', `打开 ${cnMonth(key)}，${nf.format(bucket.count)} 项`);
+        bar.addEventListener('click', () => sheetView.open(cnMonth(bucket.month),
+          `${nf.format(bucket.count)} 项 · ${bucket.photos} 照片${bucket.videos ? ` / ${bucket.videos} 视频` : ''}`,
+          { month: bucket.month }));
+      } else {
+        bar.setAttribute('aria-hidden', 'true');
+      }
+      bars.append(bar);
+    }
+    monthList.append(box);
+  }
+
   function drawMonths(year) {
     monthList.innerHTML = '';
     const months = data.months.filter((m) => m.year === year);
+    drawYearSum(year, months);
     months.forEach((bucket, i) => {
       const row = document.createElement('article');
       row.className = 'month rv';
