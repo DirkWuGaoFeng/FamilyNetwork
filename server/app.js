@@ -283,6 +283,45 @@ app.get('/api/site', (req, res) => {
   });
 });
 
+/** 背景音乐：列出 bgm 文件夹里的音频，前端整夹循环播放。目录不存在或为空就返回空表 */
+app.get('/api/bgm', async (req, res) => {
+  const dir = path.join(config.mediaRoot, config.bgmFolder);
+  let names = [];
+  try {
+    names = await fsp.readdir(dir);
+  } catch {
+    // 没建这个文件夹（或盘没插）不是错，前端据此隐藏播放控件
+    return res.json({ folder: config.bgmFolder, defaultVolume: config.bgmVolume, count: 0, tracks: [] });
+  }
+  const tracks = [];
+  for (const name of names) {
+    const ext = path.extname(name).toLowerCase();
+    if (!config.audioExtensions.includes(ext)) {
+      continue;
+    }
+    if (name.startsWith('.') || name.startsWith('~$')) {
+      continue;
+    }
+    const rel = `${config.bgmFolder}/${name}`;
+    let size = 0;
+    try {
+      size = (await fsp.stat(path.join(dir, name))).size;
+    } catch {
+      continue;   // 正被占用或刚删掉的文件，跳过就好
+    }
+    tracks.push({
+      name,
+      // 展示名：去掉扩展名、把下划线换成空格（很多文件名用 _ 分词）
+      title: path.basename(name, ext).replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim() || name,
+      // 与照片/视频同一套路：相对路径整体编码后交给 /media 同源直出（带 Range）
+      url: `/media/${encodeURIComponent(rel)}`,
+      size
+    });
+  }
+  tracks.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  res.json({ folder: config.bgmFolder, defaultVolume: config.bgmVolume, count: tracks.length, tracks });
+});
+
 /** 素材查询：相册、时间线、搜索、视频页共用这一个接口 */
 app.get('/api/media', (req, res) => {
   const paging = clampPaging(req.query);
@@ -446,7 +485,7 @@ app.use('/media', express.static(config.mediaRoot, {
   maxAge: '1d',
   fallthrough: true,
   setHeaders: (res, filePath) => {
-    if (/\.(mp4|m4v|webm|ogv|mov)$/i.test(filePath)) {
+    if (/\.(mp4|m4v|webm|ogv|mov|mp3|m4a|aac|ogg|oga|opus|flac|wav)$/i.test(filePath)) {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Cache-Control', 'public, max-age=86400');
     }

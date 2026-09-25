@@ -47,6 +47,7 @@ async function buildMediaRoot(options = {}) {
   }
 
   const zero = Buffer.alloc(0);
+  const audio = Buffer.from('ID3\x03\x00faked-audio-bytes-for-bgm-test');
 
   // --- 该被收录的 ---
   await put('婚礼/2019-10-06 仪式.png', image, '2019-10-06T12:00:00Z');
@@ -61,6 +62,13 @@ async function buildMediaRoot(options = {}) {
   await put('日常/坏图.png', Buffer.from('这坨字节不是图片'), '2024-01-02T12:00:00Z');
   // 看着有日期、其实月份非法：该退回修改时间（2017-01-01）
   await put('日常/2019-13-45 假日期.png', image, '2017-01-01T12:00:00Z');
+
+  // 背景音乐整夹：kindOf 对音频返回 null，不会被收进相册索引，单独放这儿
+  // 供 /api/bgm 测试。刻意混进一个非音频、一个隐藏文件，验证接口会过滤掉
+  await put('bgm/First-Song.mp3', audio, '2024-06-01T12:00:00Z');
+  await put('bgm/Second_Theme.mp3', audio, '2024-06-02T12:00:00Z');
+  await put('bgm/notes.txt', Buffer.from('不是音频'), '2024-06-03T12:00:00Z');
+  await put('bgm/.hidden.mp3', audio, '2024-06-04T12:00:00Z');
 
   // --- 不该出现的 ---
   if (options.ignoreDirs !== false) {

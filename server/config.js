@@ -62,6 +62,18 @@ module.exports = {
   photoExtensions: ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'],
   videoExtensions: ['.mp4', '.m4v', '.mov', '.webm', '.ogv'],
 
+  /**
+   * 背景音乐：素材根目录下这个文件夹里的音频整夹循环播放。
+   * 它不在 photo/video 扩展名里，因而不会被当成相册内容污染索引。
+   */
+  bgmFolder: (process.env.BGM_FOLDER || 'bgm').replace(/^[/\\]+|[/\\]+$/g, '') || 'bgm',
+  audioExtensions: (process.env.AUDIO_EXTENSIONS || '.mp3,.m4a,.aac,.ogg,.oga,.wav,.flac')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.startsWith('.')),
+  /** 首次访问的默认音量（0~1），之后吃用户调过的 localStorage */
+  bgmVolume: Math.min(1, Math.max(0, Number(process.env.BGM_VOLUME || 0.5) || 0.5)),
+
   /** 默认每页数量（前端「加载更多」每次追加同样数量） */
   pageSize: Number(process.env.PAGE_SIZE || 120),
 

@@ -85,6 +85,50 @@ test('站点信息接口给得出标题、统计与相册概览', async () => {
   }
 });
 
+test('背景音乐接口：列出 bgm 整夹、洗好展示名、滤掉非音频', async () => {
+  const svc = await startTestServer();
+  try {
+    const res = await get(svc.base, '/api/bgm');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.folder, svc.config.bgmFolder);
+    assert.equal(typeof res.body.defaultVolume, 'number');
+    // 两个 .mp3 收下；notes.txt（非音频）与 .hidden.mp3（点开头）都被拦下
+    assert.equal(res.body.count, 2);
+    assert.deepEqual(res.body.tracks.map((t) => t.name), ['First-Song.mp3', 'Second_Theme.mp3'], '按名排序');
+    // 展示名：连字符/下划线都换成空格，去掉扩展名
+    assert.deepEqual(res.body.tracks.map((t) => t.title), ['First Song', 'Second Theme']);
+    for (const t of res.body.tracks) {
+      assert.ok(t.url.startsWith('/media/'), '与相册同源直出');
+      assert.ok(decodeURIComponent(t.url).includes(`${svc.config.bgmFolder}/`));
+      assert.ok(Number.isInteger(t.size) && t.size >= 0);
+    }
+
+    // 音频能经 /media 直取，且支持 Range（长音频拖进度条要靠它）
+    const first = res.body.tracks[0];
+    const full = await fetch(`${svc.base}${first.url}`);
+    assert.equal(full.status, 200);
+    assert.equal(full.headers.get('accept-ranges'), 'bytes');
+    const ranged = await fetch(`${svc.base}${first.url}`, { headers: { range: 'bytes=0-3' } });
+    assert.equal(ranged.status, 206, '带 Range 应回 206，音频才能边下边播');
+  } finally {
+    await svc.close();
+  }
+});
+
+test('背景音乐接口：没建 bgm 目录时优雅退化成空表，不报错', async () => {
+  const svc = await startTestServer();
+  try {
+    // 整个删掉素材根下那层 bgm，模拟「这台机器没准备音乐」
+    await require('fs/promises').rm(path.join(svc.media.root, svc.config.bgmFolder), { recursive: true, force: true });
+    const res = await get(svc.base, '/api/bgm');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.count, 0);
+    assert.deepEqual(res.body.tracks, [], '前端据此隐藏播放控件');
+  } finally {
+    await svc.close();
+  }
+});
+
 test('查询接口：过滤、排序、分页都自洽', async () => {
   const svc = await startTestServer();
   try {
