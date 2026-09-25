@@ -548,9 +548,9 @@ async function renderHome(page) {
   rail.className = 'wrap rv';
   rail.innerHTML = `<div class="head"><h2 class="h2">最新的日子<span>RECENT</span></h2>
     <a class="link" href="#/timeline">按时间翻 →</a></div>
-    <div class="rail" id="recentRail"></div>`;
+    <div class="rail" id="recentRail"><div class="rail-track"></div></div>`;
   page.append(rail);
-  skeleton(5, rail.querySelector('#recentRail'));
+  skeleton(5, rail.querySelector('#recentRail .rail-track'));
   const latest = await query({ pageSize: 14, kind: 'photo' });
   drawRail(rail.querySelector('#recentRail'), latest.items);
 
@@ -745,12 +745,24 @@ function bandSection(item) {
   return band;
 }
 
+/** 跑马灯的速度（px/秒）：慢到随手点得中，又快到看得出在动 */
+const RAIL_SPEED = 60;
+
+/**
+ * 「最新的日子」那条轨道：自己往左跑的跑马灯，不用手拖。
+ * 同一批照片摆两份接在一条轨道上，CSS 跑到 -50%（正好一份）时回到起点，
+ * 画面完全接得上。时长按一份的实际宽度换算，照片多少、屏幕宽窄都不会
+ * 让它跑得快起来。
+ * 第二份是替身：点得动（它和原件是同一件事），但读屏与 Tab 不该重复看见它。
+ * 不开跑马灯（prefers-reduced-motion）时 CSS 会把它退回手拖，两份都留着。
+ */
 function drawRail(box, items) {
   box.innerHTML = '';
-  items.forEach((item, i) => {
+  const track = document.createElement('div');
+  track.className = 'rail-track';
+  const make = (item, i, echo) => {
     const plate = document.createElement('article');
-    plate.className = `plate ${revealClass()}`;
-    plate.style.setProperty('--i', String(i % 6));
+    plate.className = 'plate';
     const picBox = document.createElement('div');
     picBox.className = 'pic';
     const img = pic(item, thumbAt(item, 620));
@@ -759,9 +771,12 @@ function drawRail(box, items) {
     meta.className = 'meta';
     meta.innerHTML = `<b>${item.date.slice(5).replace('-', ' / ')}</b><span>${esc(item.album)}</span>`;
     plate.append(picBox, meta);
-    plate.tabIndex = 0;
+    plate.tabIndex = echo ? -1 : 0;
     plate.setAttribute('role', 'button');
     plate.setAttribute('aria-label', `放大 ${item.name}，${cnDate(item.date)}`);
+    if (echo) {
+      plate.setAttribute('aria-hidden', 'true');
+    }
     // 把这张小图交给灯箱，它就能从原地“长”成大图；关掉时再缩回来
     const open = () => player.open(items, i, img);
     plate.addEventListener('click', open);
@@ -771,9 +786,17 @@ function drawRail(box, items) {
         open();
       }
     });
-    box.append(plate);
-  });
-  watchReveals(box.parentElement || box);
+    return plate;
+  };
+  items.forEach((item, i) => track.append(make(item, i, false)));
+  items.forEach((item, i) => track.append(make(item, i, true)));
+  box.append(track);
+  // 直接量（不等一帧）：每块照片的宽是 flex-basis 定死的，不等图片加载，
+  // 读 offsetWidth 会强制一次布局，背着的标签页里也能拿到值
+  const one = track.offsetWidth / 2;
+  if (one > 0) {
+    track.style.setProperty('--rail-dur', `${Math.round(one / RAIL_SPEED)}s`);
+  }
 }
 
 function albumsTeaser(albums) {

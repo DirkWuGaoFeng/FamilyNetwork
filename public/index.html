@@ -216,11 +216,20 @@ nav.top a.on::after{right:.5rem}
 .link{font-size:.8125rem;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:.2rem;transition:color .25s,border-color .25s}
 .link:hover{color:var(--clay-text);border-color:var(--clay-text)}
 
-/* 横向轨道 -------------------------------------------------------------- */
-.rail{display:flex;gap:var(--s3);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:var(--s3);scrollbar-width:thin}
+/* 跑马灯轨道 ---------------------------------------------------------- */
+/* 不用手拖，自己慢慢往左走。同一批照片摆两遍接在轨道上，跑到「正好一份」
+   的位置时画面与起点一模一样，循环就没有接缝。间距拿 margin 而不是 gap：
+   gap 会让两份之间多不出那半个缝，-50% 就不是整数一份，接缝处会跳一下 */
+.rail{position:relative;overflow:hidden;padding-bottom:var(--s3);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
 .rail::-webkit-scrollbar{height:3px}
 .rail::-webkit-scrollbar-thumb{background:var(--line)}
-.plate{flex:0 0 clamp(250px,28vw,340px);scroll-snap-align:start;cursor:pointer}
+.rail-track{display:flex;width:max-content;animation:rail-run var(--rail-dur,90s) linear infinite}
+@keyframes rail-run{to{transform:translateX(-50%)}}
+/* 跑着的东西按不中：手放上去、或者键盘走到里面就停住 */
+.rail:hover .rail-track,.rail:focus-within .rail-track{animation-play-state:paused}
+.plate{flex:0 0 clamp(250px,28vw,340px);margin-right:var(--s3);cursor:pointer}
 .plate .pic{aspect-ratio:3/4;overflow:hidden;background:var(--paper-2);position:relative}
 .plate .pic img{width:100%;height:100%;object-fit:cover;transition:transform .9s var(--ease)}
 .plate:hover .pic img,.plate:focus .pic img{transform:scale(1.06)}
@@ -411,7 +420,7 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 /* 状态：骨架 / 空 / 错误 ------------------------------------------------ */
 .skeleton{background:linear-gradient(90deg,var(--paper-2),var(--surface-2),var(--paper-2));background-size:300% 100%;animation:shimmer 1.6s infinite}
 .strip .skeleton{aspect-ratio:4/3}
-.rail .skeleton{height:clamp(320px,40vw,440px);flex:0 0 clamp(250px,28vw,340px)}
+.rail .skeleton{height:clamp(320px,40vw,440px);flex:0 0 clamp(250px,28vw,340px);margin-right:var(--s3)}
 .masonry .skeleton{height:280px;margin-bottom:8px;display:block;break-inside:avoid}
 .vgrid .skeleton,.feature .skeleton{aspect-ratio:16/9}
 .night .skeleton{background:linear-gradient(90deg,var(--night-2),#2d231e,var(--night-2));background-size:300% 100%}
@@ -695,6 +704,10 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .print{animation:none;transition:none}
   .tile .pic,.tile .mount>img{transition:none}
   .tile .mount>img.layer{transition:none}
+  /* 跑马灯不跑了，改回手拖：两份都留着，不然拖到头是一片空 */
+  .rail{overflow-x:auto;scroll-snap-type:x mandatory}
+  .rail-track{animation:none;width:auto}
+  .plate{scroll-snap-align:start}
   .band>img{animation:none;transform:translate3d(0,calc(var(--shift) * .5),0)}
   .stage .lay,.stage .lay.out{animation:none}
   .stage .lay>img{transition:none}
