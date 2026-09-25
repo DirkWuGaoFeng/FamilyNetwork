@@ -522,7 +522,7 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
    1 让位：刘海、Home 条、圆角屏的左右安全区一律用 env(safe-area-inset-*)
    2 视口：手机地址栏会把 vh 吃掉一截，能量高的地方换成 svh
    3 触控：可点的东西至少 44×44（WCAG 2.5.5），去掉点击灰块与双击缩放带来的 300ms 延迟
-   4 手势：灯箱里左右滑换张、向下滑关闭，全程跟手；不与视频控件、胶片条抢手势
+   4 手势：灯箱里左右滑换张、向下滑关闭，双指捏合/双击放大后单指平移，全程跟手；不与视频控件、胶片条抢手势
    5 安装：manifest + 图标 + service worker（浏览器只在 https 或 localhost 下认 sw）
    =========================================================================== */
 body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
@@ -552,9 +552,11 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .band{height:clamp(320px,46svh,460px)}
 }
 
-/* 灯箱手势：只有图片吃拖拽，视频把 gesture 留给自己的控件 */
+/* 灯箱手势：只有图片吃拖拽与捏合，视频把 gesture 留给自己的控件。
+   图片一律 touch-action:none —— 捏合、双击、上下左右都由 JS 接管，
+   不让浏览器插手（默认的双指缩放会被它吃掉，pan-y 又会漏掉捏合事件） */
 .player{overscroll-behavior:none}
-.stage{touch-action:pan-y}
+.stage,.stage .lay{touch-action:none}
 .stage .lay>img{touch-action:none;will-change:transform}
 /* 手势甩出去的那一张：动画要让位给 JS 写的位移，不然会被 lay-in 拽回来 */
 .stage .lay.flung,.stage .lay.flung.out{animation:none}

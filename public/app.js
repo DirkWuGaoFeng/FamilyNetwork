@@ -1379,43 +1379,84 @@ el('lbNext').addEventListener('click', () => player.step(1));
 el('lbGif').addEventListener('click', () => player.makeGif());
 
 // ---------------------------------------------------------------------------
-// 灯箱手势：左右滑换张、向下滑关掉
+// 灯箱手势：左右滑换张、向下滑关掉；双指捏合 / 双击放大，放大后可拖动平移
 // 手机上箭头在两边摸不到、胶片条又占着下面，拖一下就换才是自然的手势。
 // 只接触摸屏：鼠标继续交给箭头与键盘，不抢普通点击。
+// 放大态（scale>1）下单指改成平移，左右滑/下滑关闭暂时让位；捏回 1x 或双击还原后恢复。
+// 每张的缩放状态挂在它自己的节点上（show 会新建），换张自然复位。
 // ---------------------------------------------------------------------------
 const SWIPE_MIN = 44;   // 慢拖的位移阈值（px）
 const FLICK_MIN = 18;   // 甩一下：短而快也算
 const FLICK_MS = 300;
 const FLIP_MIN = 90;    // 向下滑多少就关
-(function bindSwipe() {
+const ZOOM_MAX = 4;      // 双指最多放这么大
+const ZOOM_DBL = 2.5;    // 双击放到的倍数
+const ZOOM_EPS = 0.02;   // 离 1x 差一点就算没放大
+const TAP_MS = 260;      // 一次「轻点」的最长时长
+const TAP_SLOP = 12;     // 轻点允许的位移（px），超过就是拖不是点
+const TAP_GAP = 320;     // 两次轻点的最大间隔，才算双击
+const TAP_DIST = 30;     // 两次轻点落点的最大距离
+
+/** 取/建某个节点的缩放状态（缩放倍率与平移量，均相对未变换时的中心） */
+function zoomState(node) {
+  if (!node.__zoom) {
+    node.__zoom = { s: 1, tx: 0, ty: 0 };
+  }
+  return node.__zoom;
+}
+
+function applyZoom(node) {
+  const z = zoomState(node);
+  node.style.transform = `translate3d(${Math.round(z.tx)}px,${Math.round(z.ty)}px,0) scale(${z.s.toFixed(3)})`;
+}
+
+/** 夹住缩放倍率并据此限制平移：不把图拖离视野中心，回到 1x 就彻底复位 */
+function clampZoom(node, stage) {
+  const z = zoomState(node);
+  z.s = Math.min(ZOOM_MAX, Math.max(1, z.s));
+  if (z.s - 1 < ZOOM_EPS) {
+    z.s = 1;
+    z.tx = 0;
+    z.ty = 0;
+    return;
+  }
+  const overX = Math.max(0, (z.s * node.offsetWidth - stage.clientWidth) / 2);
+  const overY = Math.max(0, (z.s * node.offsetHeight - stage.clientHeight) / 2);
+  z.tx = Math.max(-overX, Math.min(overX, z.tx));
+  z.ty = Math.max(-overY, Math.min(overY, z.ty));
+}
+
+(function bindGestures() {
   const stage = el('stage');
-  let id = null;
+  const pointers = new Map();   // pointerId -> {x,y}
+  let mode = 'none';            // none | swipe | pan | pinch
+  let node = null;
+  let lay = null;
   let x0 = 0;
   let y0 = 0;
   let t0 = 0;
   let dx = 0;
   let dy = 0;
-  let lay = null;
-  let node = null;
+  let panLast = null;           // 平移：上一次单指位置
+  let pinch = null;             // 捏合：起始快照
+  let lastTapAt = 0;            // 双击：上一次轻点
+  let lastTap = null;
 
-  const release = () => {
-    id = null;
-    lay = null;
-    node = null;
-  };
+  const currentLay = () => stage.querySelector('.lay:not(.out):not(.peek)');
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  // --- 换张 / 关闭的甩动（沿用原有观感）---
   const settle = () => {
     if (node) {
       node.style.transition = reduceMotion ? 'none' : 'transform .26s var(--ease-out),opacity .26s';
-      node.style.transform = '';
+      applyZoom(node);          // 回到这张当前的缩放态（未放大时即清掉滑动位移）
       node.style.opacity = '';
     }
-    release();
   };
-  /** 把这一张甩出屏幕，同时让 player.step/close 接上下一张 */
   const fling = (tx, ty, then) => {
     const gone = lay;
     const media = node;
-    release();
     if (media) {
       media.style.transition = reduceMotion ? 'none' : 'transform .24s var(--ease),opacity .24s';
       media.style.transform = `translate3d(${tx}px,${ty}px,0)`;
@@ -1427,38 +1468,57 @@ const FLIP_MIN = 90;    // 向下滑多少就关
       gone.classList.add('out', 'flung');
       setTimeout(() => gone.remove(), reduceMotion ? 0 : 300);
     }
+    node = null;
+    lay = null;
+    mode = 'none';
     setTimeout(then, reduceMotion ? 0 : 110);
   };
 
-  stage.addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'touch' || id !== null) {
-      return;
-    }
-    // 视频要把手势留给自己的控件（进度条、全屏），按钮与链接也一样
-    if (e.target.closest('video,button,a')) {
-      return;
-    }
-    const current = stage.querySelector('.lay:not(.out)');
-    if (!current || !current.firstElementChild) {
-      return;
-    }
-    lay = current;
-    node = current.firstElementChild;
-    id = e.pointerId;
-    x0 = e.clientX;
-    y0 = e.clientY;
-    t0 = performance.now();
-    dx = 0;
-    dy = 0;
-    node.style.transition = 'none';
-  });
+  const beginPinch = () => {
+    // 从滑动切到捏合：先把当前缩放态写回去，抹掉单指滑动的视觉位移
+    applyZoom(node);
+    node.style.opacity = '';
+    const [p, q] = [...pointers.values()];
+    const z = zoomState(node);
+    const rect = node.getBoundingClientRect();
+    // 未变换时的中心 O：当前屏幕中心 = O + t（scale 不移动原点）
+    pinch = {
+      d0: dist(p, q),
+      m0: mid(p, q),
+      s0: z.s,
+      tx0: z.tx,
+      ty0: z.ty,
+      ox: rect.left + rect.width / 2 - z.tx,
+      oy: rect.top + rect.height / 2 - z.ty,
+    };
+    mode = 'pinch';
+  };
 
-  stage.addEventListener('pointermove', (e) => {
-    if (id === null || e.pointerId !== id) {
-      return;
-    }
-    dx = e.clientX - x0;
-    dy = e.clientY - y0;
+  const onPinch = () => {
+    const [p, q] = [...pointers.values()];
+    const z = zoomState(node);
+    const k = pinch.s0 ? Math.min(ZOOM_MAX, Math.max(1, pinch.s0 * dist(p, q) / pinch.d0)) / pinch.s0 : 1;
+    const m1 = mid(p, q);
+    // 让起始中点下的那个图像点跟着移到当前中点：缩放 + 平移一次算完
+    z.s = pinch.s0 * k;
+    z.tx = (m1.x - pinch.ox) - k * (pinch.m0.x - pinch.ox - pinch.tx0);
+    z.ty = (m1.y - pinch.oy) - k * (pinch.m0.y - pinch.oy - pinch.ty0);
+    clampZoom(node, stage);
+    applyZoom(node);
+  };
+
+  const onPan = (x, y) => {
+    const z = zoomState(node);
+    z.tx += x - panLast.x;
+    z.ty += y - panLast.y;
+    panLast = { x, y };
+    clampZoom(node, stage);
+    applyZoom(node);
+  };
+
+  const onSwipe = (x, y) => {
+    dx = x - x0;
+    dy = y - y0;
     if (Math.abs(dx) < 3 && Math.abs(dy) < 3) {
       return;
     }
@@ -1470,13 +1530,126 @@ const FLIP_MIN = 90;    // 向下滑多少就关
       node.style.transform = `translate3d(0,${Math.round(dy * 0.6)}px,0)`;
       node.style.opacity = String(Math.max(0.4, 1 - Math.abs(dy) / (stage.clientHeight || 1)));
     }
+  };
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'touch') {
+      return;
+    }
+    // 视频要把手势留给自己的控件（进度条、全屏），按钮与链接也一样
+    if (e.target.closest('video,button,a')) {
+      return;
+    }
+    if (pointers.size === 0) {
+      const current = currentLay();
+      if (!current || !current.firstElementChild) {
+        return;
+      }
+      lay = current;
+      node = current.firstElementChild;
+      mode = 'pending';
+      node.style.transition = 'none';
+    }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      beginPinch();
+    } else if (pointers.size === 1) {
+      x0 = e.clientX;
+      y0 = e.clientY;
+      t0 = performance.now();
+      dx = 0;
+      dy = 0;
+    }
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) {
+      return;
+    }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (mode === 'pinch') {
+      if (pointers.size >= 2) {
+        onPinch();
+      }
+      return;
+    }
+    if (mode === 'pending') {
+      const moved = Math.hypot(e.clientX - x0, e.clientY - y0);
+      if (moved < 4) {
+        return;
+      }
+      mode = zoomState(node).s - 1 >= ZOOM_EPS ? 'pan' : 'swipe';
+      panLast = { x: x0, y: y0 };
+    }
+    if (mode === 'pan') {
+      onPan(e.clientX, e.clientY);
+    } else if (mode === 'swipe') {
+      onSwipe(e.clientX, e.clientY);
+    }
   });
 
   const finish = (e) => {
-    if (id === null || (e && e.pointerId !== id)) {
+    if (!pointers.has(e.pointerId)) {
       return;
     }
+    const up = pointers.get(e.pointerId);
+    const remaining = pointers.size - 1;
+    pointers.delete(e.pointerId);
+    if (e.cancelable) {
+      e.preventDefault();   // 别让浏览器把双指点变成缩放/滚动
+    }
+
+    if (mode === 'pinch') {
+      if (remaining >= 1) {
+        // 还剩一根手指：从捏合顺滑接到平移
+        const rest = [...pointers.values()][0];
+        panLast = { x: rest.x, y: rest.y };
+        mode = zoomState(node).s - 1 >= ZOOM_EPS ? 'pan' : 'swipe';
+        return;
+      }
+      clampZoom(node, stage);
+      node.style.transition = reduceMotion ? 'none' : 'transform .2s var(--ease-out)';
+      applyZoom(node);
+      mode = 'none';
+      return;
+    }
+
+    if (mode === 'pan') {
+      if (remaining === 0) {
+        clampZoom(node, stage);
+        node.style.transition = reduceMotion ? 'none' : 'transform .2s var(--ease-out)';
+        applyZoom(node);
+        mode = 'none';
+      } else {
+        const rest = [...pointers.values()][0];
+        panLast = { x: rest.x, y: rest.y };
+      }
+      return;
+    }
+
+    // ——轻点（可能凑成双击）——
     const ms = performance.now() - t0;
+    const moved = Math.hypot((up ? up.x : e.clientX) - x0, (up ? up.y : e.clientY) - y0);
+    if (mode === 'pending' && ms < TAP_MS && moved < TAP_SLOP) {
+      const now = performance.now();
+      const spot = lastTap && now - lastTapAt < TAP_GAP && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < TAP_DIST;
+      if (spot) {
+        dblTapTo({ x: e.clientX, y: e.clientY });
+        lastTap = null;
+      } else {
+        lastTapAt = now;
+        lastTap = { x: e.clientX, y: e.clientY };
+      }
+      mode = 'none';
+      return;
+    }
+    lastTap = null;
+
+    if (mode !== 'swipe') {
+      mode = 'none';
+      return;
+    }
+    // ——滑动的收尾：够远或够快就换张/关闭，否则弹回——
     const flick = ms < FLICK_MS;
     const horiz = Math.abs(dx) >= Math.abs(dy);
     const hit = Math.abs(dx);
@@ -1494,10 +1667,37 @@ const FLIP_MIN = 90;    // 向下滑多少就关
       return;
     }
     settle();
+    mode = 'none';
   };
 
+  /** 双击：以点击处为锚，在 1x 与 ZOOM_DBL 之间来回，再点还原 */
+  function dblTapTo(f) {
+    const z = zoomState(node);
+    const rect = node.getBoundingClientRect();
+    const ox = rect.left + rect.width / 2 - z.tx;
+    const oy = rect.top + rect.height / 2 - z.ty;
+    const ns = z.s - 1 >= ZOOM_EPS ? 1 : ZOOM_DBL;
+    const k = ns / z.s;
+    z.s = ns;
+    z.tx = (f.x - ox) * (1 - k) + k * z.tx;
+    z.ty = (f.y - oy) * (1 - k) + k * z.ty;
+    clampZoom(node, stage);
+    node.style.transition = reduceMotion ? 'none' : 'transform .28s var(--ease-out)';
+    applyZoom(node);
+  }
+
   stage.addEventListener('pointerup', finish);
-  stage.addEventListener('pointercancel', settle);
+  stage.addEventListener('pointercancel', (e) => {
+    pointers.delete(e.pointerId);
+    if (mode === 'pinch' || mode === 'pan') {
+      node.style.transition = reduceMotion ? 'none' : 'transform .2s var(--ease-out)';
+      clampZoom(node, stage);
+      applyZoom(node);
+    } else {
+      settle();
+    }
+    mode = pointers.size ? mode : 'none';
+  });
 })();
 
 // ---------------------------------------------------------------------------
