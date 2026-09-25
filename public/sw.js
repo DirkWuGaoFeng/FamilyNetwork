@@ -14,7 +14,7 @@
 // 改了 SHELL 里任何一个文件（app.js / 首页样式）就抬一下这个号：
 // 旧缓存是在 activate 里按名字删的，不抬号就有人长期拿到上一版 JS
 // （首页是网络优先不会中招，app.js 是“先用缓存、后台补新的”会）
-const VERSION = 'family-gallery-shell-v2';
+const VERSION = 'family-gallery-shell-v3';
 const SHELL = [
   '/',
   '/app.js',

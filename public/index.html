@@ -274,11 +274,30 @@ nav.top a.on::after{right:.5rem}
 .tile .name{font-family:var(--serif);font-size:clamp(1.25rem,2.2vw,1.75rem)}
 .tile .count{font-size:.75rem;letter-spacing:.16em;color:var(--muted)}
 .tile .tags{display:block;font-size:.75rem;color:var(--muted);letter-spacing:.08em;margin-top:.15rem}
+/* 第一本占整行那么宽（16:9），光一张相片撑不住：把它当摊开的两页——
+   左页贴相片，右页题写相册名、年份、张数。窄屏不摊（那地方放不下），
+   靠下面的 .body 那一行报名字，所以题写页默认隐藏、只在宽屏出现 */
+.tile .titlepage{display:none;position:absolute;left:54%;right:6%;top:50%;transform:translateY(-50%);z-index:2}
+.tile .titlepage .t{font-family:var(--serif);font-weight:400;font-size:clamp(1.9rem,3.4vw,3rem);line-height:1.15;margin:0 0 .5rem}
+.tile .titlepage .y{margin:0;font-size:.8125rem;letter-spacing:.14em;color:var(--muted)}
+.tile .titlepage .c{margin:.9rem 0 0;font-size:.75rem;letter-spacing:.16em;color:var(--brass-text)}
+@media (min-width:901px){
+  .tile.span12 .titlepage{display:block}
+  /* 名字撑到右页去了，下面那一行收成「只给读屏的」而不能真 display:none：
+     题写页是份装饰副本（aria-hidden），两边都没了相册就没名字了 */
+  .tile.span12 .body{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  /* 相片只占左页 */
+  .tile.span12 .mount{inset:8% 54% 10% 5%}
+  /* 两页中间那道沟：不是边框，是纸对折压下去的影。它得跟着页高走（几乎顶到底），
+     跟着文字块走的话，摊在一页 700 多高的相册中间就只是一块污迹 */
+  .tile.span12 .pic::after{content:"";position:absolute;left:50%;top:4%;bottom:4%;width:52px;transform:translateX(-50%);
+    background:linear-gradient(90deg,transparent,rgba(60,38,22,.1),transparent);pointer-events:none}
+}
 @media (max-width:900px){
   .sheet-grid{gap:var(--s2)}
   .tile,.tile.span12,.tile:nth-child(n){grid-column:span 12}
-  /* 窄屏上横幅那本也收成正经比例（span12 的选择性比 .tile 高，得一起写），
-     卡纸边距同步收窄，不然小屏上一本相册光白边就占掉画面的一成 */
+  /* 窄屏上摊开的那本合回去（span12 的选择性比 .tile 高，得一起写），
+     卡纸边距同步收窄，不然小屏上一沓相片光白边就占掉画面的一成 */
   .tile .pic,.tile.span12 .pic{aspect-ratio:4/3}
   .tile,.tile.span12{--mat:5px}
 }

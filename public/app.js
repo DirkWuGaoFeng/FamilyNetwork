@@ -872,6 +872,18 @@ function albumTile(album, extraClass, order) {
   body.innerHTML = `<div><span class="name">${esc(album.name)}</span>
     <span class="tags">${album.years.join(' · ')}</span></div>
     <span class="count num">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</span>`;
+  // 第一本占整行那么宽，光一张相片撑不住：摊成两页，右页题写名字与年份。
+  // 窄屏不摊（那地方放不下），收放交给 CSS，这里只多建一个节点
+  if (extraClass === 'span12') {
+    const page = document.createElement('div');
+    page.className = 'titlepage';
+    // 同一份信息下面那行 .body 里也有（大屏上它是只给读屏的），别念两遍
+    page.setAttribute('aria-hidden', 'true');
+    page.innerHTML = `<h3 class="t">${esc(album.name)}</h3>
+      <p class="y">${album.years.join(' · ')}</p>
+      <p class="c">${nf.format(album.count)} 项 · ${nf.format(album.photos)} 照片${album.videos ? ` / ${nf.format(album.videos)} 视频` : ''}</p>`;
+    picBox.append(page);
+  }
   // 名字在上、封面在下：先报“这本是谁”，再给你看封面
   tile.append(body, picBox);
   tile.tabIndex = 0;
