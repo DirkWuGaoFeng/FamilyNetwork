@@ -152,33 +152,50 @@ nav.top a.on::after{right:.5rem}
 .cta:hover{gap:1.4rem}
 .cta svg{width:22px;height:8px;stroke:currentColor;fill:none;stroke-width:1.2}
 
-.collage{position:relative;height:clamp(430px,62vh,660px);--shift:0px}
-.shot{position:absolute;overflow:hidden;background:var(--paper-2);box-shadow:var(--lift);will-change:transform}
-.shot img{width:100%;height:100%;object-fit:cover;animation:kenburns 24s var(--ease) infinite alternate}
-.shot::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(169,138,91,.35)}
+/* 首屏拼贴：三张「钉在墙上的相片」。
+   格子（.shot）只负责“能占多大地方、摆在哪、歪几度”；真正的相片是里面的 .print，
+   白卡纸 + 相片钉 + 下沿手写说明，尺寸由照片自己的比例量出来（app.js fitPrints）。
+   不再用 object-fit:cover 把竖构图硬塞进横格子——那样一张人像只能露出六成画面 */
+.collage{position:relative;height:clamp(430px,62vh,660px);--shift:0px;--mat-x:11px;--mat-t:11px;--mat-b:44px}
+.shot{position:absolute;will-change:transform}
 .shot.a{width:53%;height:82%;left:0;top:6%;transform:translate3d(0,calc(var(--shift) * .35),0) rotate(-2.2deg);z-index:2}
 .shot.b{width:41%;height:56%;right:2%;top:0;transform:translate3d(0,calc(var(--shift) * .7),0) rotate(1.6deg);z-index:3}
 .shot.c{width:38%;height:47%;right:8%;bottom:0;transform:translate3d(0,calc(var(--shift) * 1),0) rotate(-1deg);z-index:4}
-.shot.a img{animation-duration:26s}
-.shot.b img{animation-duration:31s;animation-direction:alternate-reverse}
-.shot.c img{animation-duration:37s}
-.shot .cap{
-  position:absolute;left:0;right:0;bottom:0;padding:var(--s4) var(--s2) var(--s1);font-size:.75rem;letter-spacing:.08em;
-  color:#fff;background:linear-gradient(rgba(22,17,14,.05),rgba(22,17,14,.86));text-shadow:0 1px 10px rgba(22,17,14,.6)
-}
-.shot.a .cap{visibility:hidden}
-@keyframes kenburns{from{transform:scale(1.02) translate3d(0,0,0)}to{transform:scale(1.13) translate3d(-1.4%,-1.2%,0)}}
+/* 量出尺寸之前是个 0 大的盒子，免得先闪一张空白卡纸 */
+.print{position:absolute;inset:0;margin:auto;width:0;height:0;box-sizing:border-box;
+  padding:var(--mat-t) var(--mat-x) var(--mat-b);background:var(--surface);
+  box-shadow:var(--lift);outline:1px solid rgba(169,138,91,.22);outline-offset:-1px;
+  opacity:0;transition:opacity 1.9s var(--ease);animation:breathe 26s var(--ease) infinite alternate}
+.print.on{opacity:1}
+/* 同一格里的几张相片各歪一点点：换层时不是“同一张纸换了内容”，而是另一张相片 */
+.print:nth-of-type(2){animation-duration:31s;animation-direction:alternate-reverse;rotate:.9deg}
+.print:nth-of-type(3){animation-duration:37s;rotate:-.7deg}
+.print>img{display:block;width:100%;height:100%;object-fit:contain;box-shadow:0 1px 3px rgba(60,38,22,.22)}
+/* 相片钉：黄铜圆帽，压在卡纸上沿（卡纸不 overflow:hidden，不然钉帽会被切掉一半）。
+   用 transform 而不用 translate 那个独立属性：老 Safari 不认，钉帽会偏半个身子 */
+.print::before{content:"";position:absolute;left:50%;top:-8px;width:15px;height:15px;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#f2dcae,#a98a5b 48%,#7a5c31);
+  box-shadow:0 2px 5px rgba(60,38,22,.4),inset 0 -1px 2px rgba(0,0,0,.3)}
+/* 说明从“压在画面上”改成“写在卡纸下沿那条边上”：地点一行、日期一行。
+   必须两行：竖构图的卡纸只有照片那么宽（一百多 px），一行写不下“文件夹 · 日期” */
+.print .cap{position:absolute;left:var(--mat-x);right:var(--mat-x);bottom:0;height:calc(var(--mat-b) - 6px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15em;line-height:1.25;text-align:center;
+  font-size:.625rem;letter-spacing:.1em;color:var(--brass-text);overflow:hidden}
+.print .cap>span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.print .cap .num{font-family:var(--serif);letter-spacing:.06em;color:var(--ink-2)}
+/* 相片不再裁边，运镜就只能整张动：轻微呼吸 + 微摆，只碰 transform 与 opacity */
+@keyframes breathe{from{transform:scale(1) rotate(0deg)}to{transform:scale(1.018) rotate(.4deg)}}
 @media (max-width:1000px){
   .hero-grid{grid-template-columns:1fr;gap:var(--s5)}
   .collage{height:clamp(360px,58vh,520px)}
   .facts{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:640px){
-  .collage{height:380px}
+  .collage{height:380px;--mat-x:8px;--mat-t:8px;--mat-b:10px}
   .shot.a{width:64%;height:74%}
   .shot.b{width:46%;height:48%}
   .shot.c{width:44%;height:40%}
-  .shot .cap{display:none}
+  .print .cap{display:none}
 }
 
 /* 大照片引言带 ---------------------------------------------------------- */
@@ -464,13 +481,6 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 @keyframes lay-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--from,26px) * -1)) scale(.994)}}
 
 /* 活的照片：首屏拼贴与相册封面的图层溶解 ---------------------------------- */
-.shot>img{position:absolute;inset:0;opacity:0;transition:opacity 1.9s var(--ease)}
-.shot>img.on{opacity:1}
-.shot img:nth-of-type(2){animation-duration:31s;animation-direction:alternate-reverse}
-.shot img:nth-of-type(3){animation-duration:37s}
-.shot img:nth-of-type(4){animation-duration:43s;animation-direction:alternate-reverse}
-.shot .cap{transition:opacity 1.1s var(--ease)}
-.shot .cap.swap{opacity:0}
 .tile .pic .layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.05);transition:opacity 1.2s var(--ease),transform 2.4s var(--ease)}
 .tile .pic .layer.on{opacity:1;transform:none}
 
@@ -635,7 +645,7 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
      不彻底关掉的话 .scrub 会停在 from 状态（隐身），直到滚进区间才瞬现 */
   .scrub,.progress{animation:none !important}
   .collage{--shift:0px !important}
-  .shot>img{transition:none}
+  .print{animation:none;transition:none}
   .tile .pic .layer{transition:none}
   .band>img{animation:none;transform:translate3d(0,calc(var(--shift) * .5),0)}
   .stage .lay,.stage .lay.out{animation:none}

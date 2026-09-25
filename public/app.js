@@ -588,6 +588,11 @@ function heroSection(site) {
     </div>`;
 
   const slots = [...section.querySelectorAll('.shot')];
+  // 卡纸尺寸取决于格子的像素大小，窗口一变就得重量（媒体查询也在改格子尺寸）
+  const collage = section.querySelector('.collage');
+  const resize = new ResizeObserver(() => fitPrints(collage));
+  resize.observe(collage);
+  onPageCleanup(() => resize.disconnect());
   // 宽度取预热过的档位（760/620），不然首次打开在现成生成会卡一下
   const widthOf = (i) => (i === 0 ? 760 : 620);
   const fromAlbums = () => slots.forEach((slot, i) => {
@@ -629,36 +634,44 @@ function heroSection(site) {
 }
 
 /**
- * 「活的照片」：一个格子里堆几层图，每层跑自己的 Ken Burns 运镜，
- * 到点就与下一层交叉溶解。只动 opacity 与 transform，不进布局与绘制
+ * 「活的照片」：一个格子里叠几张独立装裱的相片，每层跑自己的呼吸运镜，
+ * 到点就与下一层交叉溶解。
+ *
+ * 相片不直接拿格子尺寸当尺寸：等图片量出真实比例后由 fitPrints 算，
+ * 所以卡纸刚好包住照片、横竖构图都不裁。说明也写成每张一份，
+ * 跟着相片一起淡入淡出，不再需要一个元素担“当前这张”的文案
  */
 function livingShot(slot, items, width, startDelay) {
   if (!items || items.length === 0) {
     return;
   }
-  const imgs = items.map((item, i) => {
-    const img = pic(item, thumbAt(item, width), i === 0);
+  const collage = slot.parentElement;
+  const prints = items.map((item, i) => {
+    const print = document.createElement('figure');
+    print.className = 'print';
     if (i === 0) {
-      img.classList.add('on');
+      print.classList.add('on');
     }
-    slot.append(img);
-    return img;
-  });
-  let cap = slot.querySelector('.cap');
-  if (!cap) {
-    cap = document.createElement('figcaption');
+    // 三层都是会轮到上台的主角，不能懒加载：卡纸在量出尺寸前是 0 大的盒子，
+    // 懒加载会把它当成「还在屏外」而一直不取图，那一层就永远空着
+    const img = pic(item, thumbAt(item, width), true);
+    img.addEventListener('load', () => {
+      const ar = img.naturalWidth / img.naturalHeight;
+      if (ar > 0) {
+        print.__ar = ar;
+        fitPrints(collage);
+      }
+    }, { once: true });
+    const cap = document.createElement('figcaption');
     cap.className = 'cap';
-    slot.append(cap);
-  }
-  const drawCap = (item) => {
-    cap.classList.add('swap');
-    setTimeout(() => {
-      cap.innerHTML = `${esc(item.folder || item.album)}<br><span class="num">${cnDate(item.date)}</span>`;
-      cap.classList.remove('swap');
-    }, reduceMotion ? 0 : 520);
-  };
-  drawCap(items[0]);
-  if (imgs.length < 2 || reduceMotion) {
+    // 日期用 2019.10.20 而不是「2019 年 10 月 20 日」：窄一点的卡纸只有照片那么宽
+    //（一张竖构图能瘦到 90px），中文日期写上去会被省略号截掉一半
+    cap.innerHTML = `<span>${esc(item.folder || item.album)}</span><span class="num">${item.date.replace(/-/g, '.')}</span>`;
+    print.append(img, cap);
+    slot.append(print);
+    return print;
+  });
+  if (prints.length < 2 || reduceMotion) {
     return;
   }
   let idx = 0;
@@ -667,13 +680,46 @@ function livingShot(slot, items, width, startDelay) {
     if (document.hidden) {
       return;
     }
-    const next = (idx + 1) % imgs.length;
-    imgs[idx].classList.remove('on');
-    imgs[next].classList.add('on');
+    const next = (idx + 1) % prints.length;
+    prints[idx].classList.remove('on');
+    prints[next].classList.add('on');
     idx = next;
-    drawCap(items[idx]);
   }, 5400 + startDelay % 1400);
   onPageCleanup(() => clearInterval(timer));
+}
+
+/**
+ * 重算首屏每张相片的尺寸：卡纸要 hug 住照片，又不能顶破格子。
+ * 可用区 = 格子扣掉卡纸边距，再按照片比例取“能塞下的那个边”。
+ * 边距只以 CSS 的 --mat-* 为准（媒体查询会改它），所以这里现读而不是写死。
+ * @param {Element} collage 拼贴容器
+ */
+function fitPrints(collage) {
+  if (!collage) {
+    return;
+  }
+  const cs = getComputedStyle(collage);
+  const px = (name, fallback) => {
+    const v = parseFloat(cs.getPropertyValue(name));
+    return Number.isFinite(v) ? v : fallback;
+  };
+  const matX = px('--mat-x', 11);
+  const matT = px('--mat-t', 11);
+  const matB = px('--mat-b', 44);
+  collage.querySelectorAll('.shot').forEach((slot) => {
+    const availW = Math.max(0, slot.clientWidth - matX * 2);
+    const availH = Math.max(0, slot.clientHeight - matT - matB);
+    slot.querySelectorAll('.print').forEach((print) => {
+      if (!print.__ar) {
+        return;
+      }
+      const h = Math.min(availH, availW / print.__ar);
+      // 先取整照片的边长、再加卡纸边距：反过来四舍五入会让内窗比例偏掉近 3%，
+      // 那几像素的缝在 object-fit:contain 下就成了一圈白边
+      print.style.width = `${Math.round(h * print.__ar) + matX * 2}px`;
+      print.style.height = `${Math.round(h) + matT + matB}px`;
+    });
+  });
 }
 
 /** 一条横幅大图 + 一句话，负责「温馨」那一半 */
