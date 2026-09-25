@@ -46,6 +46,9 @@
   --lift:0 26px 60px -34px rgba(60,38,22,.5);
   --ease:cubic-bezier(.2,.7,.2,1);
   --ease-out:cubic-bezier(.16,1,.3,1);
+  /* 灯箱顶栏的确定高度：不靠内容自撑（窄屏下文字折行会把栏顶高），
+     图片避让和顶栏实体都引用这一个值，两边永远不会对不上 */
+  --lbbar:64px;
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -362,12 +365,15 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 /* 有交叉溶解层的时候就不动整个 stage，否则与共享元素过渡叠加会抖动 */
 .player.open .stage:not(:has(.lay)){animation:zoom-in .45s var(--ease-out)}
 @keyframes zoom-in{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
-.stage{position:absolute;inset:0;display:grid;place-items:center;padding:78px 92px 140px}
+.stage{position:absolute;inset:0;display:grid;place-items:center}
 .stage img,.stage video{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 30px 90px rgba(0,0,0,.65)}
-.pbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);font-size:.75rem;letter-spacing:.14em;color:var(--on-night-muted);z-index:2}
-.pbar .idx{font-family:var(--serif);color:var(--on-night);font-size:1rem}
-.pbar .name{max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pbar .sp{margin-left:auto;display:flex;gap:var(--s2);align-items:center}
+.pbar{position:absolute;top:0;left:0;right:0;height:calc(var(--lbbar) + env(safe-area-inset-top));box-sizing:border-box;display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);padding-top:calc(var(--s2) + env(safe-area-inset-top));font-size:.75rem;letter-spacing:.14em;color:var(--on-night-muted);z-index:2}
+.pbar .idx{font-family:var(--serif);color:var(--on-night);font-size:1rem;white-space:nowrap}
+.pbar .name{max-width:40ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* .sp 与里面那段“文件夹 · 日期 · 大小”必须钉成单行：flex 项默认 min-width:auto，
+   不显式归零的话窄屏下这串字会换行，顶栏从 50px 长到 88px，把图片顶边压住一截 */
+.pbar .sp{margin-left:auto;display:flex;gap:var(--s2);align-items:center;min-width:0}
+.pbar .sp #lbMeta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbar a,.pbar button{width:34px;height:34px;border:1px solid var(--night-line);border-radius:50%;display:grid;place-items:center;color:var(--on-night)}
 .pbar a:hover,.pbar button:hover{border-color:var(--clay)}
 .pbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4}
@@ -379,7 +385,7 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 .strip-bar button{flex:0 0 auto;width:74px;height:52px;overflow:hidden;opacity:.4;transition:opacity .3s,transform .3s;filter:grayscale(.35)}
 .strip-bar button img{width:100%;height:100%;object-fit:cover}
 .strip-bar button.on,.strip-bar button:hover{opacity:1;filter:none;transform:translateY(-3px)}
-@media (max-width:700px){.stage{padding:64px 10px 110px}.nav-arrow{width:40px;height:40px}.nav-arrow.prev{left:8px}.nav-arrow.next{right:8px}}
+@media (max-width:700px){.nav-arrow{width:40px;height:40px}.nav-arrow.prev{left:8px}.nav-arrow.next{right:8px}}
 
 /* 搜索 ------------------------------------------------------------------ */
 .search .panel{max-width:1000px;height:auto;margin:8vh auto;border:var(--frame);overflow:hidden}
@@ -440,8 +446,14 @@ footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--mu
 @keyframes vt-light{from{opacity:.35}to{opacity:1}}
 
 /* 灯箱内上一张/下一张：两层交叉溶解（不用整页过渡，不闪白） ---------------- */
+/* 避让页眉、两侧箭头和底部胶片条。padding 写在 .lay 自己身上：
+   .lay 是 absolute;inset:0，只吃自己的 padding，写在 .stage/.stage-in 上它都不认。
+   用 flex 而不是 grid 居中：grid 的 auto 行轨道会让 img 的 max-height:100%
+   解析不到确定高度，竖构图会把轨道撑破、上下穿出遮拦 */
 .stage-in{position:relative;width:100%;height:100%}
-.stage .lay{position:absolute;inset:0;display:grid;place-items:center;animation:lay-in .52s var(--ease-out) both}
+.stage .lay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;animation:lay-in .52s var(--ease-out) both;
+  padding:78px 92px 140px}
+@media (max-width:700px){.stage .lay{padding:64px 10px 110px}}
 .stage .lay.out{animation:lay-out .42s var(--ease) both;pointer-events:none}
 @keyframes lay-in{from{opacity:0;transform:translateX(var(--from,26px)) scale(.994)}to{opacity:1;transform:none}}
 @keyframes lay-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--from,26px) * -1)) scale(.994)}}
@@ -528,10 +540,10 @@ nav.top{inset:calc(74px + env(safe-area-inset-top)) 0 auto}
 footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
 .toast{bottom:calc(36px + env(safe-area-inset-bottom))}
 .pbar{padding-top:calc(var(--s2) + env(safe-area-inset-top))}
-.pbar,.stage{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
-.stage{padding-top:calc(78px + env(safe-area-inset-top))}
+.pbar,.stage .lay{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+.stage .lay{padding-top:calc(var(--lbbar) + 14px + env(safe-area-inset-top));padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 @media (max-width:700px){
-  .stage{padding:calc(64px + env(safe-area-inset-top)) max(10px,env(safe-area-inset-left)) calc(110px + env(safe-area-inset-bottom))}
+  .stage .lay{padding-top:calc(var(--lbbar) + 6px + env(safe-area-inset-top));padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-left));padding-bottom:calc(110px + env(safe-area-inset-bottom))}
 }
 @supports (height:100svh){
   .collage{height:clamp(360px,58svh,520px)}
