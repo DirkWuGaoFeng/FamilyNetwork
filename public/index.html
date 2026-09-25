@@ -580,6 +580,44 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .masonry figcaption{opacity:1}
 }
 
+/* 背景音乐播放坞 -------------------------------------------------------- */
+.bgm{
+  position:fixed;left:var(--s3);bottom:calc(var(--s3) + env(safe-area-inset-bottom));z-index:35;
+  display:flex;align-items:center;gap:var(--s2);max-width:min(92vw,420px);
+  padding:.5rem .75rem .5rem .5rem;background:rgba(255,253,249,.92);
+  backdrop-filter:blur(12px) saturate(1.1);border:var(--frame);border-radius:999px;box-shadow:var(--lift);
+  color:var(--ink);transition:transform .4s var(--ease),opacity .4s var(--ease)
+}
+.bgm[hidden]{display:none}
+/* 灯箱开着时底部有胶片条，播放坞先退场，免得两层叠在一起 */
+.player.open ~ .bgm{opacity:0;transform:translateY(140%);pointer-events:none}
+.bgm-toggle{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--clay);color:#fff;display:grid;place-items:center;transition:background .25s,transform .25s}
+.bgm-toggle:hover{background:var(--clay-text);transform:scale(1.05)}
+.bgm-toggle svg{width:18px;height:18px;fill:currentColor}
+/* 播放时露出跳动的小均衡器、藏起三角；暂停时相反 */
+.bgm-eq{display:none;align-items:flex-end;gap:2px;height:16px}
+.bgm-eq i{width:3px;height:40%;background:currentColor;border-radius:1px;transform-origin:bottom;animation:bgm-bar .9s var(--ease) infinite alternate}
+.bgm-eq i:nth-child(2){animation-duration:.6s}
+.bgm-eq i:nth-child(3){animation-duration:1.05s}
+.bgm-eq i:nth-child(4){animation-duration:.75s}
+@keyframes bgm-bar{from{transform:scaleY(.3)}to{transform:scaleY(1)}}
+.bgm.playing .bgm-eq{display:flex}
+.bgm.playing .bgm-play{display:none}
+.bgm-meta{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;line-height:1.2}
+.bgm-label{font-size:.5625rem;letter-spacing:.24em;text-transform:uppercase;color:var(--brass-text)}
+.bgm-title{font-family:var(--serif);font-size:.9375rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:24ch}
+.bgm-actions{flex:0 0 auto;display:flex;align-items:center;gap:.15rem}
+.bgm-btn{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .2s,color .2s}
+.bgm-btn:hover{background:var(--paper-2);color:var(--ink)}
+.bgm-btn svg{width:16px;height:16px;fill:currentColor}
+.bgm-btn.muted{color:var(--muted)}
+.bgm-vol{width:72px;accent-color:var(--clay);cursor:pointer}
+@media (max-width:700px){
+  .bgm{left:var(--s2);right:var(--s2);bottom:calc(var(--s2) + env(safe-area-inset-bottom));max-width:none}
+  /* 窄屏留不下音量条，靠静音按钮与系统音量即可 */
+  .bgm-vol{display:none}
+}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
   .rv,.fade{opacity:1;transform:none}
@@ -594,6 +632,10 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   .stage .lay,.stage .lay.out{animation:none}
   .stage .lay>img{transition:none}
   .loupe,.night .spot{display:none}
+  .bgm-eq i{animation:none}
+  .bgm-eq i:nth-child(2){height:70%}
+  .bgm-eq i:nth-child(3){height:45%}
+  .bgm-eq i:nth-child(4){height:85%}
   ::view-transition-old(root),::view-transition-new(root),
   ::view-transition-old(lb-focus),::view-transition-new(lb-focus){animation:none}
 }
@@ -698,6 +740,31 @@ footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
   <button class="nav-arrow next" id="lbNext" aria-label="下一个（→）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
   <div class="strip-bar" id="lbStrip"></div>
 </div>
+
+<!-- 背景音乐：常驻左下角的播放坞。默认 hidden，拉到 /api/bgm 有内容才显示 -->
+<div class="bgm" id="bgm" hidden>
+  <button class="bgm-toggle" id="bgmToggle" aria-label="播放背景音乐" title="播放 / 暂停">
+    <span class="bgm-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <svg class="bgm-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+  </button>
+  <div class="bgm-meta">
+    <span class="bgm-label">背景音乐</span>
+    <span class="bgm-title" id="bgmTitle" title="">—</span>
+  </div>
+  <div class="bgm-actions">
+    <button class="bgm-btn" id="bgmPrev" aria-label="上一首" title="上一首">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14l-9-7zM8 12l9-7v14z"/></svg>
+    </button>
+    <button class="bgm-btn" id="bgmNext" aria-label="下一首" title="下一首">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14l9-7zM16 5v14h2V5z"/></svg>
+    </button>
+    <button class="bgm-btn" id="bgmMute" aria-label="静音" title="静音 / 取消静音">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9zM16 9a3 3 0 0 1 0 6"/></svg>
+    </button>
+    <input class="bgm-vol" id="bgmVol" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="音量">
+  </div>
+</div>
+<audio id="bgmAudio" preload="none"></audio>
 
 <div class="loupe" id="loupe" aria-hidden="true"><img alt=""><span class="t"></span></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

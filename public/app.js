@@ -1659,12 +1659,204 @@ function toast(text) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3600);
 }
 
+// ---------------------------------------------------------------------------
+// 背景音乐：把 bgm 文件夹整夹循环播放
+// 默认打开：浏览器不允许无手势外放，所以首次交互（点一下、按一下）即起播；
+// 用户显式暂停过后，下次进页不再自动起。音量、选曲等偏好记在 localStorage。
+// 播放坞在 #page 之外，路由切换不会把它重渲染掉，声音也不会断。
+// ---------------------------------------------------------------------------
+const bgm = {
+  tracks: [],
+  index: 0,
+  audio: null,
+  box: null,
+  ready: false,
+  consecutiveErrors: 0,
+  pref: { i: 0, v: null, m: false, want: true },
+
+  init() {
+    this.box = el('bgm');
+    this.audio = el('bgmAudio');
+    try {
+      const saved = JSON.parse(localStorage.getItem('bgm.pref') || '{}') || {};
+      // v2 之前的版本会把「默认关」也存成 want:false，分不清是没建文件夹还是用户真按过暂停；
+      // 没有 v2 标记的一律当新访客处理：回到「默认打开」，音量、选曲照旧保留
+      if (!saved.v2 && 'want' in saved) {
+        delete saved.want;
+      }
+      Object.assign(this.pref, saved);
+    } catch { /* 读不到就用默认 */ }
+    getJson('/api/bgm').then((data) => {
+      if (!data || !Array.isArray(data.tracks) || data.tracks.length === 0) {
+        return;   // 没建文件夹或里面没音频：不展示播放控件
+      }
+      this.tracks = data.tracks;
+      this.index = Math.min(Math.max(0, this.pref.i | 0), this.tracks.length - 1);
+      if (this.pref.v === null) {
+        this.pref.v = typeof data.defaultVolume === 'number' ? data.defaultVolume : 0.5;
+      }
+      this.ready = true;
+      this.wire();
+      this.box.hidden = false;
+      this.applyVolume();
+      this.load(this.index, false);
+      // 默认想听（或上次没关）的话，等一个用户手势再接上（不能凭空外放）
+      if (this.pref.want) {
+        this.armAutoplay();
+      }
+    }).catch(() => { /* 接口没通就不放音乐，不影响看照片 */ });
+  },
+
+  wire() {
+    const a = this.audio;
+    a.addEventListener('ended', () => this.step(1, true));
+    a.addEventListener('play', () => this.setPlaying(true));
+    a.addEventListener('pause', () => this.setPlaying(false));
+    a.addEventListener('error', () => this.onError());
+    el('bgmToggle').addEventListener('click', () => this.toggle());
+    el('bgmPrev').addEventListener('click', () => this.step(-1, false));
+    el('bgmNext').addEventListener('click', () => this.step(1, false));
+    el('bgmMute').addEventListener('click', () => this.toggleMute());
+    const vol = el('bgmVol');
+    vol.value = String(this.pref.v);
+    vol.addEventListener('input', () => {
+      this.pref.v = Number(vol.value);
+      this.applyVolume();
+      this.save();
+    });
+  },
+
+  applyVolume() {
+    const v = Math.min(1, Math.max(0, Number(this.pref.v)));
+    this.audio.volume = v;
+    this.audio.muted = !!this.pref.m;
+    el('bgmVol').value = String(v);
+    el('bgmMute').classList.toggle('muted', this.audio.muted);
+    el('bgmMute').setAttribute('aria-label', this.audio.muted ? '取消静音' : '静音');
+  },
+
+  /** 载入第 n 首（循环取模）；autoplay 为 true 则立即播 */
+  load(n, autoplay) {
+    if (!this.tracks.length) {
+      return;
+    }
+    this.index = ((n % this.tracks.length) + this.tracks.length) % this.tracks.length;
+    const track = this.tracks[this.index];
+    if (this.audio.src !== new URL(track.url, location.origin).href) {
+      this.audio.src = track.url;
+    }
+    const title = el('bgmTitle');
+    title.textContent = track.title;
+    title.title = track.name;
+    this.save();
+    this.sessionMeta(track);
+    if (autoplay) {
+      this.play();
+    }
+  },
+
+  play() {
+    const p = this.audio.play();
+    if (p && p.catch) {
+      p.catch(() => { /* 还是被拦了（无手势），等下次点击 */ });
+    }
+  },
+
+  toggle() {
+    if (!this.ready) {
+      return;
+    }
+    if (this.audio.paused) {
+      this.pref.want = true;
+      this.play();
+    } else {
+      this.pref.want = false;
+      this.audio.pause();
+    }
+    this.save();
+  },
+
+  step(dir, auto) {
+    this.consecutiveErrors = 0;
+    this.load(this.index + dir, auto || !this.audio.paused);
+  },
+
+  toggleMute() {
+    this.pref.m = !this.audio.muted;
+    this.applyVolume();
+    this.save();
+  },
+
+  onError() {
+    // 坏文件、格式不支持：自动跳下一首；整夹都坏就停下，不要无限循环
+    this.consecutiveErrors = (this.consecutiveErrors || 0) + 1;
+    if (this.consecutiveErrors >= this.tracks.length) {
+      this.consecutiveErrors = 0;
+      this.audio.removeAttribute('src');
+      this.setPlaying(false);
+      toast('背景音乐的文件都播不了，可能格式不支持');
+      return;
+    }
+    this.step(1, true);
+  },
+
+  setPlaying(on) {
+    this.box.classList.toggle('playing', on);
+    const btn = el('bgmToggle');
+    btn.setAttribute('aria-label', on ? '暂停背景音乐' : '播放背景音乐');
+    if (this.ready && 'mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = on ? 'playing' : 'paused';
+      } catch { /* 老浏览器不支持就算了 */ }
+    }
+  },
+
+  /** 系统锁屏/耳机上的播放控件（支持的话），也顺带把歌名交给系统展示 */
+  sessionMeta(track) {
+    if (!('mediaSession' in navigator)) {
+      return;
+    }
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: SITE ? SITE.title : '背景音乐', album: '家庭相册' });
+      navigator.mediaSession.setActionHandler('previoustrack', () => this.step(-1, true));
+      navigator.mediaSession.setActionHandler('nexttrack', () => this.step(1, true));
+      navigator.mediaSession.setActionHandler('play', () => this.play());
+      navigator.mediaSession.setActionHandler('pause', () => { this.pref.want = false; this.audio.pause(); this.save(); });
+    } catch { /* 部分字段不支持时忽略，不影响页内控件 */ }
+  },
+
+  /** 首次真实手势时把上次想要的外接上，之后不再自动弹声 */
+  armAutoplay() {
+    const resume = () => {
+      detach();
+      if (this.pref.want && this.audio.paused) {
+        this.play();
+      }
+    };
+    const detach = () => {
+      window.removeEventListener('pointerdown', resume);
+      window.removeEventListener('keydown', resume);
+    };
+    window.addEventListener('pointerdown', resume, { once: true });
+    window.addEventListener('keydown', resume, { once: true });
+    this._detachAutoplay = detach;
+  },
+
+  save() {
+    try {
+      // v2：「默认打开」之后的存档标记，见 init 里的迁移说明
+      localStorage.setItem('bgm.pref', JSON.stringify({ v2: 1, i: this.index, v: this.pref.v, m: this.pref.m, want: this.pref.want }));
+    } catch { /* 隐私模式下写不了不影响使用 */ }
+  }
+};
+
 async function boot() {
   SITE = await getJson('/api/site');
   const years = SITE.years.map((y) => y.year).sort();
   el('footRoot').textContent = SITE.rootName;
   el('footNote').textContent = `${SITE.subtitle} · 最早的素材在 ${SITE.stats.firstDate}，最新在 ${SITE.stats.lastDate || '—'}`;
   el('footTime').textContent = new Date(SITE.generatedAt).toLocaleString('zh-CN', { hour12: false });
+  bgm.init();
   await navigate();
 }
 
