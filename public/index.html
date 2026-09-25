@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f6f1e9">
+<meta name="description" content="家庭影像档案：本机的照片与视频，局域网里直接看。">
+<title>我们的家 · 家庭影像档案</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="我们的家">
+<style>
+/* ===========================================================================
+   设计系统：相册书气质（warm editorial）
+   参考 Agatha Photography 的单色开场、Julian Abrams 的细字重分屏、
+   Nordland 的"照片占满、界面退后"。
+   四条规则：
+   1 界面只做装裱 —— 米白纸底、1px 细线、圆角几乎不用；
+   2 一处暖（陶土）一处贵（黄铜），小字一律用可读色变体；
+   3 照片要大 —— 首屏三张错落拼贴、相册横幅 21:9、大图列数只给 3 列；
+   4 动效有来源 —— 全部是"揭示"（擦入、错位升起、缓慢推近、视差），不做装饰性抖动。
+   =========================================================================== */
+:root{
+  --paper:#f6f1e9;      --paper-2:#efe7db;
+  --surface:#fffdf9;    --surface-2:#fbf6ee;
+  --ink:#221c18;        --ink-2:#4a403a;      --muted:#6e625a;
+  --line:#e3d8c7;       --line-soft:#eee5d8;
+  --clay:#b8654a;       --clay-soft:#d7a08a;  --brass:#a98a5b;
+  /* 装饰色（细线/边框/大字）与可读色（小字）分开，否则 11px 米黄压米白只有 2.9:1 */
+  --clay-text:#9d4f34;  --brass-text:#7a5c31;
+  --night:#16110e;      --night-2:#221a16;    --night-line:#3a2e28;
+  --on-night:#f0e6da;   --on-night-muted:#a4958a;
+
+  --serif:"Palatino Linotype","Book Antiqua",Georgia,"Songti SC","Noto Serif SC","STSong",serif;
+  --sans:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+
+  --s-1:.25rem; --s0:.5rem; --s1:.75rem; --s2:1rem; --s3:1.5rem; --s4:2rem;
+  --s5:3rem; --s6:4.5rem; --s7:6.5rem;
+  --maxw:1360px;
+  --frame:1px solid var(--line);
+  --lift:0 26px 60px -34px rgba(60,38,22,.5);
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:400 16px/1.75 var(--sans);letter-spacing:.01em;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+img,video{display:block;max-width:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,h4{margin:0;font-weight:400;line-height:1.1;letter-spacing:-.015em}
+p{margin:0}
+:focus-visible{outline:2px solid var(--clay);outline-offset:3px;border-radius:1px}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.skip{position:absolute;left:var(--s2);top:-4rem;z-index:99;background:var(--surface);padding:var(--s1) var(--s2);border:var(--frame);transition:top .2s}
+.skip:focus{top:var(--s2)}
+
+/* 排版原语 -------------------------------------------------------------- */
+.eyebrow{font-size:.6875rem;letter-spacing:.3em;text-transform:uppercase;color:var(--brass-text);font-weight:600}
+.display{font-family:var(--serif);font-size:clamp(2.75rem,7.2vw,5.5rem);letter-spacing:-.022em;line-height:.98}
+.display em{font-style:italic;color:var(--brass-text)}
+.h2{font-family:var(--serif);font-size:clamp(1.75rem,3.6vw,2.6rem)}
+.h3{font-size:1.0625rem;font-weight:600;letter-spacing:.02em}
+.lede{font-size:clamp(1rem,1.15vw,1.1875rem);line-height:1.8;color:var(--ink-2);max-width:46ch}
+.note{font-size:.8125rem;color:var(--muted);letter-spacing:.04em}
+.num{font-family:var(--serif);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.quote{font-family:var(--serif);font-size:clamp(1.5rem,3.2vw,2.4rem);line-height:1.4;letter-spacing:.01em}
+
+.wrap{width:100%;max-width:var(--maxw);margin:0 auto;padding:0 var(--s4)}
+/* 通栏元素。#page 本身就是满宽的（body 没有 padding），所以 100% 就是屏幕宽度。
+   以前这里写的是 width:100vw + margin-left:calc(50% - 50vw)：那个套路是给
+   被 .wrap 包着的元素用的，用在这里反而会因为 100vw 含滚动条而比可见区域
+   宽出一截，页面能横向滚出几条缝 */
+.bleed{width:100%}
+section{padding:var(--s7) 0}
+@media (max-width:760px){section{padding:var(--s6) 0}.wrap{padding:0 var(--s2)}}
+
+/* 页眉 ------------------------------------------------------------------ */
+header.site{
+  position:sticky;top:0;z-index:40;background:rgba(246,241,233,.9);
+  backdrop-filter:blur(14px) saturate(1.1);border-bottom:1px solid var(--line-soft);
+}
+.site-in{display:flex;align-items:center;gap:var(--s3);height:74px}
+.brand{display:flex;align-items:baseline;gap:.6rem;font-family:var(--serif);font-size:1.25rem;letter-spacing:.04em}
+.brand .mark{
+  width:27px;height:27px;border:1px solid var(--brass);border-radius:50%;align-self:center;
+  display:grid;place-items:center;font-size:.6875rem;color:var(--brass-text);
+}
+nav.top{display:flex;gap:var(--s1);margin-left:auto;align-items:center}
+nav.top a{
+  font-size:.8125rem;letter-spacing:.16em;color:var(--muted);padding:var(--s1) var(--s1);position:relative;
+  transition:color .3s var(--ease);
+}
+nav.top a i{font-style:normal;color:var(--brass-text);font-size:.625rem;margin-right:.45em;vertical-align:.2em}
+nav.top a::after{content:"";position:absolute;left:.5rem;right:100%;bottom:.1rem;height:1px;background:var(--clay);transition:right .4s var(--ease)}
+nav.top a:hover{color:var(--ink)}
+nav.top a:hover::after{right:.5rem}
+nav.top a.on{color:var(--ink)}
+nav.top a.on::after{right:.5rem}
+.tools{display:flex;gap:var(--s1);align-items:center;margin-left:var(--s2)}
+.icon-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--ink-2);transition:background .25s,border-color .25s,transform .25s}
+.icon-btn:hover{background:var(--surface);border-color:var(--brass);transform:translateY(-1px)}
+.icon-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4}
+.burger{display:none}
+@media (max-width:980px){
+  /* 抽屉收起时靠位移移出屏外，但屏外的东西还能被 Tab 选中：
+     补一个延迟的 visibility，滑出去那一下还能看见，到位就不再吃焦点 */
+  nav.top{position:fixed;inset:74px 0 auto;flex-direction:column;gap:0;background:var(--surface);
+    border-bottom:1px solid var(--line);padding:var(--s1) var(--s4) var(--s3);transform:translateY(-130%);
+    visibility:hidden;transition:transform .4s var(--ease),visibility 0s .4s;margin-left:0}
+  nav.top.open{transform:none;visibility:visible;transition:transform .4s var(--ease),visibility 0s}
+  nav.top a{width:100%;padding:var(--s2) 0;border-bottom:1px solid var(--line-soft)}
+  nav.top a::after{display:none}
+  /* 抽屉里左右也要躲开刘海：写在这个断点里而不是全局，不然桌面上导航会被推出一段假 padding */
+  nav.top{padding-left:max(var(--s4),env(safe-area-inset-left));padding-right:max(var(--s4),env(safe-area-inset-right))}
+  .burger{display:grid}
+}
+
+/* 页面切换 -------------------------------------------------------------- */
+.progress{
+  position:fixed;left:0;top:74px;height:2px;z-index:41;pointer-events:none;
+  background:linear-gradient(90deg,var(--brass),var(--clay));
+  transform-origin:0 50%;transform:scaleX(var(--p,0))
+}
+.page{min-height:60vh}
+.page.leaving{opacity:0;transform:translateY(-8px);transition:opacity .22s linear,transform .22s var(--ease)}
+.page.entering{animation:page-in .55s var(--ease-out) both}
+@keyframes page-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* 首屏：文字 + 三张错落拼贴 --------------------------------------------- */
+.hero{padding:var(--s5) 0 var(--s4);position:relative}
+.hero-grid{display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);gap:var(--s5);align-items:center}
+.hero h1{margin:var(--s2) 0 var(--s3)}
+.hero .lede{margin-bottom:var(--s4)}
+.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2) var(--s3);border-top:var(--frame);padding-top:var(--s3);margin-bottom:var(--s4)}
+.facts .k{display:block;font-family:var(--serif);font-size:clamp(1.5rem,2.4vw,2rem);line-height:1.1}
+.facts .v{font-size:.625rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.cta{display:inline-flex;align-items:center;gap:.7rem;font-size:.875rem;letter-spacing:.14em;color:var(--clay-text);border-bottom:1px solid var(--clay-soft);padding-bottom:.35rem;transition:gap .35s var(--ease)}
+.cta:hover{gap:1.4rem}
+.cta svg{width:22px;height:8px;stroke:currentColor;fill:none;stroke-width:1.2}
+
+.collage{position:relative;height:clamp(430px,62vh,660px);--shift:0px}
+.shot{position:absolute;overflow:hidden;background:var(--paper-2);box-shadow:var(--lift);will-change:transform}
+.shot img{width:100%;height:100%;object-fit:cover;animation:kenburns 24s var(--ease) infinite alternate}
+.shot::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(169,138,91,.35)}
+.shot.a{width:53%;height:82%;left:0;top:6%;transform:translate3d(0,calc(var(--shift) * .35),0) rotate(-2.2deg);z-index:2}
+.shot.b{width:41%;height:56%;right:2%;top:0;transform:translate3d(0,calc(var(--shift) * .7),0) rotate(1.6deg);z-index:3}
+.shot.c{width:38%;height:47%;right:8%;bottom:0;transform:translate3d(0,calc(var(--shift) * 1),0) rotate(-1deg);z-index:4}
+.shot.a img{animation-duration:26s}
+.shot.b img{animation-duration:31s;animation-direction:alternate-reverse}
+.shot.c img{animation-duration:37s}
+.shot .cap{
+  position:absolute;left:0;right:0;bottom:0;padding:var(--s4) var(--s2) var(--s1);font-size:.75rem;letter-spacing:.08em;
+  color:#fff;background:linear-gradient(rgba(22,17,14,.05),rgba(22,17,14,.86));text-shadow:0 1px 10px rgba(22,17,14,.6)
+}
+.shot.a .cap{visibility:hidden}
+@keyframes kenburns{from{transform:scale(1.02) translate3d(0,0,0)}to{transform:scale(1.13) translate3d(-1.4%,-1.2%,0)}}
+@media (max-width:1000px){
+  .hero-grid{grid-template-columns:1fr;gap:var(--s5)}
+  .collage{height:clamp(360px,58vh,520px)}
+  .facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:640px){
+  .collage{height:380px}
+  .shot.a{width:64%;height:74%}
+  .shot.b{width:46%;height:48%}
+  .shot.c{width:44%;height:40%}
+  .shot .cap{display:none}
+}
+
+/* 大照片引言带 ---------------------------------------------------------- */
+.band{position:relative;height:clamp(320px,46vh,460px);overflow:hidden;background:var(--paper-2);--shift:0px}
+.band img{position:absolute;inset:-12% 0;width:100%;height:124%;object-fit:cover;will-change:transform;transform:translate3d(0,calc(var(--shift) * .5),0)}
+.band .veil{position:absolute;inset:0;background:linear-gradient(100deg,rgba(22,17,14,.72),rgba(22,17,14,.18) 62%,transparent)}
+.band .say{
+  position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:var(--s5) var(--s4);color:var(--on-night);
+  display:grid;gap:var(--s2);align-content:center;height:100%
+}
+.band .say .quote{color:#fff}
+.band .say .who{font-size:.75rem;letter-spacing:.22em;text-transform:uppercase;color:rgba(240,230,218,.8)}
+
+/* 区块标题 -------------------------------------------------------------- */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s5)}
+.head .h2 span{color:var(--brass-text);font-size:.8125rem;letter-spacing:.2em;vertical-align:.65em;margin-left:.6rem}
+.link{font-size:.8125rem;letter-spacing:.16em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:.2rem;transition:color .25s,border-color .25s}
+.link:hover{color:var(--clay-text);border-color:var(--clay-text)}
+
+/* 横向轨道 -------------------------------------------------------------- */
+.rail{display:flex;gap:var(--s3);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:var(--s3);scrollbar-width:thin}
+.rail::-webkit-scrollbar{height:3px}
+.rail::-webkit-scrollbar-thumb{background:var(--line)}
+.plate{flex:0 0 clamp(250px,28vw,340px);scroll-snap-align:start;cursor:pointer}
+.plate .pic{aspect-ratio:3/4;overflow:hidden;background:var(--paper-2);position:relative}
+.plate .pic img{width:100%;height:100%;object-fit:cover;transition:transform .9s var(--ease)}
+.plate:hover .pic img,.plate:focus .pic img{transform:scale(1.06)}
+.plate .meta{display:flex;justify-content:space-between;align-items:baseline;padding-top:var(--s2);font-size:.8125rem;color:var(--muted)}
+.plate .meta b{font-family:var(--serif);font-weight:400;font-size:1.25rem;color:var(--ink)}
+
+/* 相册：横幅 + 大小格 --------------------------------------------------- */
+.sheet-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--s3)}
+.tile{grid-column:span 6;cursor:pointer;position:relative}
+.tile .pic{overflow:hidden;background:var(--paper-2);aspect-ratio:3/2;position:relative}
+.tile .pic img{width:100%;height:100%;object-fit:cover;transition:transform 1s var(--ease)}
+.tile:hover .pic img,.tile:focus .pic img{transform:scale(1.05)}
+.tile.span12{grid-column:span 12}
+.tile.span12 .pic{aspect-ratio:21/9}
+.tile:nth-child(4n+3),.tile:nth-child(4n+4){grid-column:span 6}
+.tile .pic::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(22,17,14,0) 45%,rgba(22,17,14,.62));opacity:0;transition:opacity .45s var(--ease)}
+.tile:hover .pic::after,.tile:focus .pic::after{opacity:1}
+.tile .float{
+  position:absolute;left:var(--s3);bottom:var(--s3);right:var(--s3);z-index:2;color:#fff;opacity:0;transform:translateY(10px);
+  transition:opacity .45s var(--ease),transform .45s var(--ease);pointer-events:none;font-size:.8125rem;letter-spacing:.06em
+}
+.tile:hover .float,.tile:focus .float{opacity:1;transform:none}
+.tile .body{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);padding-top:var(--s2);border-top:1px solid var(--line-soft);margin-top:var(--s2)}
+.tile .name{font-family:var(--serif);font-size:clamp(1.25rem,2.2vw,1.75rem)}
+.tile .count{font-size:.75rem;letter-spacing:.16em;color:var(--muted)}
+.tile .tags{display:block;font-size:.75rem;color:var(--muted);letter-spacing:.08em;margin-top:.15rem}
+@media (max-width:900px){
+  .sheet-grid{gap:var(--s2)}
+  .tile,.tile.span12,.tile:nth-child(n){grid-column:span 12}
+  .tile .pic{aspect-ratio:4/3}
+}
+
+/* 时间线 ---------------------------------------------------------------- */
+.tl{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:var(--s6)}
+.years{position:sticky;top:110px;align-self:start;display:flex;flex-direction:column;gap:.15rem;border-right:var(--frame);padding-right:var(--s3);max-height:76vh;overflow:auto}
+.years button{display:flex;justify-content:space-between;width:100%;padding:.4rem 0;font-family:var(--serif);font-size:1.35rem;color:var(--muted);letter-spacing:.04em;transition:color .3s,transform .3s var(--ease)}
+.years button .num{font-size:.75rem;letter-spacing:.1em;font-family:var(--sans)}
+.years button:hover{color:var(--ink);transform:translateX(4px)}
+.years button.on{color:var(--ink)}
+.years button.on .num{color:var(--clay-text)}
+.months{display:flex;flex-direction:column;gap:var(--s5)}
+.month{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr);gap:var(--s4);align-items:start;padding-bottom:var(--s5);border-bottom:1px solid var(--line-soft);cursor:pointer}
+.month .lab .num{font-family:var(--serif);font-size:1.5rem;display:block}
+.month .lab span{font-size:.75rem;letter-spacing:.12em;color:var(--muted)}
+.month .lab .go{display:inline-block;margin-top:.5rem;font-size:.6875rem;letter-spacing:.18em;color:var(--clay-text);opacity:0;transform:translateY(4px);transition:.35s var(--ease)}
+.month:hover .lab .go{opacity:1;transform:none}
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+.strip .pic{aspect-ratio:4/3;overflow:hidden;background:var(--paper-2);cursor:pointer;position:relative}
+.strip .pic img{width:100%;height:100%;object-fit:cover;transition:transform .9s var(--ease)}
+.strip .pic:hover img{transform:scale(1.07)}
+.strip .pic.more::after{content:attr(data-more);position:absolute;inset:0;display:grid;place-items:center;background:rgba(22,17,14,.58);color:#fff;font-family:var(--serif);font-size:1.25rem;letter-spacing:.06em}
+@media (max-width:980px){
+  .tl{grid-template-columns:1fr;gap:var(--s4)}
+  .years{position:static;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:var(--frame);padding:0 0 var(--s2);max-height:none}
+  .years button{flex:0 0 auto;padding-right:var(--s3);font-size:1.15rem}
+  .month{grid-template-columns:1fr;gap:var(--s2);padding-bottom:var(--s4)}
+  .strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* 影像：暗色放映厅 ------------------------------------------------------ */
+.night{background:var(--night);color:var(--on-night)}
+.night .head .link,.night .note{color:var(--on-night-muted)}
+.night .rule{background:var(--night-line)}
+.feature{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:var(--s4);align-items:center;margin-bottom:var(--s6)}
+.feature .screen{position:relative;aspect-ratio:16/9;overflow:hidden;background:var(--night-2);border:1px solid var(--night-line);cursor:pointer}
+.feature .screen img{width:100%;height:100%;object-fit:cover;opacity:.92;transition:transform 1.2s var(--ease),opacity .5s}
+.feature .screen:hover img{transform:scale(1.04);opacity:1}
+.play{
+  position:absolute;left:50%;top:50%;translate:-50% -50%;width:84px;height:84px;border-radius:50%;
+  border:1px solid rgba(240,230,218,.55);display:grid;place-items:center;background:rgba(22,17,14,.35);backdrop-filter:blur(3px);
+  transition:transform .4s var(--ease),border-color .4s,background .4s
+}
+.play svg{width:26px;height:26px;fill:var(--on-night);stroke:none;margin-left:4px}
+.play::before{content:"";position:absolute;inset:-1px;border-radius:50%;border:1px solid rgba(240,230,218,.4);animation:pulse 2.8s var(--ease) infinite}
+@keyframes pulse{0%{transform:scale(1);opacity:.7}70%{transform:scale(1.35);opacity:0}100%{opacity:0}}
+.feature .screen:hover .play{transform:scale(1.08);border-color:var(--clay-soft);background:rgba(22,17,14,.55)}
+.feature .say h2{font-family:var(--serif);font-size:clamp(1.5rem,3vw,2.25rem);color:#fff;margin-bottom:var(--s2)}
+.feature .say p{color:var(--on-night-muted);font-size:.9375rem;max-width:38ch}
+@media (max-width:900px){.feature{grid-template-columns:1fr;gap:var(--s3)}}
+
+.vgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4)}
+.vcard{cursor:pointer}
+.vcard .pic{aspect-ratio:16/9;overflow:hidden;background:var(--night-2);position:relative;border:1px solid var(--night-line)}
+.vcard .pic img{width:100%;height:100%;object-fit:cover;opacity:.9;transition:transform 1s var(--ease),opacity .5s}
+.vcard:hover .pic img{transform:scale(1.05);opacity:1}
+.vcard .dur{
+  position:absolute;right:.6rem;bottom:.6rem;font-family:var(--serif);font-size:.75rem;letter-spacing:.06em;color:#fff;
+  background:rgba(16,12,10,.7);padding:.15rem .5rem;border-radius:2px
+}
+.vcard .dur[data-empty]{display:none}
+.vcard .body{padding-top:var(--s2);display:flex;justify-content:space-between;gap:var(--s2);align-items:baseline}
+.vcard .body b{font-weight:400;font-size:.9375rem;letter-spacing:.02em}
+.vcard .body span{font-size:.75rem;color:var(--on-night-muted)}
+@media (max-width:700px){.vgrid{grid-template-columns:1fr}}
+
+/* 关于页 ---------------------------------------------------------------- */
+.prose{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr);gap:var(--s6)}
+.prose .side{position:sticky;top:110px;align-self:start}
+.prose dl{margin:0;display:grid;gap:var(--s4)}
+.prose dt{font-family:var(--serif);font-size:1.375rem;margin-bottom:.35rem}
+.prose dd{margin:0;color:var(--ink-2);font-size:.9375rem;line-height:1.9;max-width:58ch}
+.prose dd code{font-family:ui-monospace,Consolas,monospace;font-size:.8125rem;background:var(--surface);border:1px solid var(--line-soft);padding:.1rem .4rem;border-radius:2px}
+.prose .row{padding-bottom:var(--s4);border-bottom:1px solid var(--line-soft)}
+@media (max-width:980px){.prose{grid-template-columns:1fr;gap:var(--s4)}.prose .side{position:static}}
+
+/* 页脚 ------------------------------------------------------------------ */
+footer.site{border-top:var(--frame);padding:var(--s5) 0 var(--s6);color:var(--muted);font-size:.8125rem;letter-spacing:.04em}
+.foot{display:flex;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+.foot .paths{max-width:56ch;line-height:1.9}
+.foot code{font-family:ui-monospace,Consolas,monospace;font-size:.75rem;color:var(--ink-2);word-break:break-all}
+
+/* 浮层：相册 / 搜索 ----------------------------------------------------- */
+.sheet-view,.search,.player{position:fixed;inset:0;z-index:60;display:none}
+.sheet-view.open,.search.open,.player.open{display:block}
+.scrim{position:absolute;inset:0;background:rgba(28,20,16,.6);backdrop-filter:blur(3px)}
+.panel{
+  position:relative;margin:0 auto;height:100%;max-width:1560px;background:var(--paper);
+  display:flex;flex-direction:column;box-shadow:0 0 90px rgba(28,20,16,.4);animation:panel-in .5s var(--ease-out)
+}
+@keyframes panel-in{from{transform:translateY(3rem);opacity:.3}to{transform:none;opacity:1}}
+.panel-head{display:flex;align-items:flex-end;gap:var(--s3);padding:var(--s4) var(--s4) var(--s3);border-bottom:var(--frame)}
+.panel-head .title{font-family:var(--serif);font-size:clamp(1.5rem,3vw,2.1rem)}
+.panel-head .sub{font-size:.8125rem;color:var(--muted);letter-spacing:.08em}
+.panel-head .close{margin-left:auto}
+.chips{display:flex;gap:var(--s1);flex-wrap:wrap;padding:var(--s2) var(--s4);border-bottom:1px solid var(--line-soft)}
+.chip{font-size:.75rem;letter-spacing:.1em;color:var(--muted);border:1px solid var(--line);padding:.34rem .85rem;border-radius:999px;white-space:nowrap;transition:.25s}
+.chip:hover{border-color:var(--clay-soft);color:var(--ink)}
+.chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.panel-body{overflow:auto;padding:var(--s4);flex:1}
+.masonry{columns:3 340px;column-gap:var(--s2)}
+.masonry figure{break-inside:avoid;margin:0 0 var(--s2);position:relative;cursor:pointer;overflow:hidden;background:var(--paper-2)}
+.masonry img{width:100%;height:auto;transition:transform 1s var(--ease)}
+.masonry figure:hover img{transform:scale(1.035)}
+.masonry figcaption{
+  position:absolute;inset:auto 0 0;padding:var(--s4) var(--s1) var(--s1);font-size:.6875rem;letter-spacing:.1em;color:#fff;
+  background:linear-gradient(rgba(22,17,14,.05),rgba(22,17,14,.85));opacity:0;transition:opacity .35s;text-shadow:0 1px 8px rgba(22,17,14,.6)
+}
+.masonry figure:hover figcaption,.masonry figure:focus-within figcaption{opacity:1}
+@media (max-width:900px){.masonry{columns:2 190px}}
+
+/* 状态：骨架 / 空 / 错误 ------------------------------------------------ */
+.skeleton{background:linear-gradient(90deg,var(--paper-2),var(--surface-2),var(--paper-2));background-size:300% 100%;animation:shimmer 1.6s infinite}
+.strip .skeleton{aspect-ratio:4/3}
+.rail .skeleton{height:clamp(320px,40vw,440px);flex:0 0 clamp(250px,28vw,340px)}
+.masonry .skeleton{height:280px;margin-bottom:8px;display:block;break-inside:avoid}
+.vgrid .skeleton,.feature .skeleton{aspect-ratio:16/9}
+.night .skeleton{background:linear-gradient(90deg,var(--night-2),#2d231e,var(--night-2));background-size:300% 100%}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+.state{padding:var(--s6) var(--s3);text-align:center;color:var(--muted)}
+.state .h3{color:var(--ink);margin-bottom:var(--s1)}
+.state button{margin-top:var(--s3);border:1px solid var(--clay-text);color:var(--clay-text);padding:.5rem 1.4rem;letter-spacing:.14em;font-size:.8125rem;border-radius:999px}
+.empty{padding:var(--s6) var(--s3);text-align:center}
+.empty .h3{margin-bottom:var(--s1)}
+.more{display:flex;justify-content:center;padding:var(--s4) 0 0}
+.more button{border:1px solid var(--line);padding:.65rem 2.2rem;font-size:.8125rem;letter-spacing:.18em;color:var(--ink-2);border-radius:999px;background:var(--surface);transition:.25s}
+.more button:hover{border-color:var(--brass);color:var(--clay-text)}
+
+/* 灯箱：放映模式 -------------------------------------------------------- */
+.player{background:rgba(16,12,10,.97);color:var(--on-night)}
+/* 有交叉溶解层的时候就不动整个 stage，否则与共享元素过渡叠加会抖动 */
+.player.open .stage:not(:has(.lay)){animation:zoom-in .45s var(--ease-out)}
+@keyframes zoom-in{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
+.stage{position:absolute;inset:0;display:grid;place-items:center;padding:78px 92px 140px}
+.stage img,.stage video{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 30px 90px rgba(0,0,0,.65)}
+.pbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);font-size:.75rem;letter-spacing:.14em;color:var(--on-night-muted);z-index:2}
+.pbar .idx{font-family:var(--serif);color:var(--on-night);font-size:1rem}
+.pbar .name{max-width:40ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbar .sp{margin-left:auto;display:flex;gap:var(--s2);align-items:center}
+.pbar a,.pbar button{width:34px;height:34px;border:1px solid var(--night-line);border-radius:50%;display:grid;place-items:center;color:var(--on-night)}
+.pbar a:hover,.pbar button:hover{border-color:var(--clay)}
+.pbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4}
+.nav-arrow{position:absolute;top:50%;transform:translateY(-50%);width:54px;height:54px;border-radius:50%;border:1px solid var(--night-line);color:var(--on-night);display:grid;place-items:center;background:rgba(34,26,22,.6);transition:.3s;z-index:2}
+.nav-arrow:hover{border-color:var(--clay);background:rgba(34,26,22,.92)}
+.nav-arrow.prev{left:18px}.nav-arrow.next{right:18px}
+.nav-arrow svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.3}
+.strip-bar{position:absolute;left:0;right:0;bottom:0;padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));display:flex;gap:6px;overflow-x:auto;background:linear-gradient(transparent,rgba(16,12,10,.9));z-index:2}
+.strip-bar button{flex:0 0 auto;width:74px;height:52px;overflow:hidden;opacity:.4;transition:opacity .3s,transform .3s;filter:grayscale(.35)}
+.strip-bar button img{width:100%;height:100%;object-fit:cover}
+.strip-bar button.on,.strip-bar button:hover{opacity:1;filter:none;transform:translateY(-3px)}
+@media (max-width:700px){.stage{padding:64px 10px 110px}.nav-arrow{width:40px;height:40px}.nav-arrow.prev{left:8px}.nav-arrow.next{right:8px}}
+
+/* 搜索 ------------------------------------------------------------------ */
+.search .panel{max-width:1000px;height:auto;margin:8vh auto;border:var(--frame);overflow:hidden}
+.search-field{display:flex;align-items:center;gap:var(--s2);padding:var(--s3) var(--s4);border-bottom:var(--frame)}
+.search-field input{flex:1;border:0;background:none;font:400 1.3rem/1.4 var(--serif);color:var(--ink);letter-spacing:.02em}
+.search-field input:focus{outline:none}
+.search-field svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.4}
+.hint{padding:var(--s3) var(--s4);font-size:.8125rem;color:var(--muted)}
+
+/* 揭示动效 -------------------------------------------------------------- */
+.rv{opacity:0;transform:translateY(18px)}
+.rv.in{opacity:1;transform:none;transition:opacity .9s var(--ease-out),transform .9s var(--ease-out);transition-delay:calc(var(--i,0) * 70ms)}
+.wipe{clip-path:inset(0 100% 0 0)}
+.wipe.in{clip-path:inset(0 0 0 0);transition:clip-path 1.1s var(--ease-out);transition-delay:calc(var(--i,0) * 70ms)}
+.fade{opacity:0}
+.fade.in{opacity:1;transition:opacity 1.1s var(--ease);transition-delay:calc(var(--i,0) * 70ms)}
+.toast{
+  position:fixed;left:50%;bottom:36px;transform:translate(-50%,20px);z-index:80;opacity:0;
+  background:var(--ink);color:var(--paper);padding:.7rem 1.4rem;font-size:.8125rem;letter-spacing:.1em;
+  border-radius:999px;transition:opacity .3s,transform .3s;pointer-events:none;box-shadow:var(--lift)
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ===========================================================================
+   v3 过渡与联动 —— 全部走浏览器原生能力，零依赖
+   1 路由切换有方向：往前进从右边推入，往后退从左边滑回（Direction-aware）
+   2 点照片不是「弹层出现」，而是那张照片自己被放大（View Transition 共享元素）
+   3 首屏拼贴是「活的照片」：每层在自己的运镜里与下一层交叉溶解
+   4 能交给合成器的滚动动画一律交给 animation-timeline，不占主线程
+   参考：Awwwards 30 个优秀视差站（Peter Lindbergh 滚动导航图库）、
+   Agatha Photography 的单色开场、ken-burns-carousel 的图层溶解做法、
+   Apple/Samsung 的逐帧擦洗（这里用 view() 时间线而不是 canvas 序列帧）。
+   =========================================================================== */
+
+/* 路由：方向感知 ------------------------------------------------------- */
+/* 用 data-vt 属性而不是 :active-view-transition-type()：属性在过渡开始前就同步写好，
+   不依赖浏览器对类型伪类的实现细节，行为可预测 */
+[data-vt="nav-forward"]::view-transition-old(root){animation:vt-out-left .38s var(--ease) both}
+[data-vt="nav-forward"]::view-transition-new(root){animation:vt-in-right .52s var(--ease-out) both}
+[data-vt="nav-back"]::view-transition-old(root){animation:vt-out-right .38s var(--ease) both}
+[data-vt="nav-back"]::view-transition-new(root){animation:vt-in-left .52s var(--ease-out) both}
+@keyframes vt-out-left{from{opacity:1;transform:none}to{opacity:.25;transform:translateX(-2.6%)}}
+@keyframes vt-in-right{from{opacity:0;transform:translateX(2.6%)}to{opacity:1;transform:none}}
+@keyframes vt-out-right{from{opacity:1;transform:none}to{opacity:.25;transform:translateX(2.6%)}}
+@keyframes vt-in-left{from{opacity:0;transform:translateX(-2.6%)}to{opacity:1;transform:none}}
+/* 不支持 View Transition 的浏览器走 .leaving/.entering，方向感保留 */
+.page[data-vt="nav-forward"].entering{animation-name:page-in-right}
+.page[data-vt="nav-back"].entering{animation-name:page-in-left}
+@keyframes page-in-right{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+@keyframes page-in-left{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}
+
+/* 共享元素：缩略图 → 灯箱 ------------------------------------------------ */
+.vt-src,.stage img.vt-dst{view-transition-name:lb-focus}
+::view-transition-group(lb-focus){animation-duration:.58s;animation-timing-function:var(--ease-out);z-index:65}
+::view-transition-old(lb-focus){animation:vt-dim .3s linear both}
+::view-transition-new(lb-focus){animation:vt-light .58s var(--ease-out) both}
+@keyframes vt-dim{to{opacity:.15}}
+@keyframes vt-light{from{opacity:.35}to{opacity:1}}
+
+/* 灯箱内上一张/下一张：两层交叉溶解（不用整页过渡，不闪白） ---------------- */
+.stage-in{position:relative;width:100%;height:100%}
+.stage .lay{position:absolute;inset:0;display:grid;place-items:center;animation:lay-in .52s var(--ease-out) both}
+.stage .lay.out{animation:lay-out .42s var(--ease) both;pointer-events:none}
+@keyframes lay-in{from{opacity:0;transform:translateX(var(--from,26px)) scale(.994)}to{opacity:1;transform:none}}
+@keyframes lay-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(calc(var(--from,26px) * -1)) scale(.994)}}
+
+/* 活的照片：首屏拼贴与相册封面的图层溶解 ---------------------------------- */
+.shot>img{position:absolute;inset:0;opacity:0;transition:opacity 1.9s var(--ease)}
+.shot>img.on{opacity:1}
+.shot img:nth-of-type(2){animation-duration:31s;animation-direction:alternate-reverse}
+.shot img:nth-of-type(3){animation-duration:37s}
+.shot img:nth-of-type(4){animation-duration:43s;animation-direction:alternate-reverse}
+.shot .cap{transition:opacity 1.1s var(--ease)}
+.shot .cap.swap{opacity:0}
+.tile .pic .layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.05);transition:opacity 1.2s var(--ease),transform 2.4s var(--ease)}
+.tile .pic .layer.on{opacity:1;transform:none}
+
+/* 滚动驱动：能交给合成器的就不碰主线程 ---------------------------------- */
+@supports (animation-timeline: view()){
+  .scrub{animation:vt-scrub linear both;animation-timeline:view();animation-range:entry 3% cover 30%}
+}
+@supports not (animation-timeline: view()){
+  .scrub{opacity:0;transform:translateY(18px)}
+  .scrub.in{opacity:1;transform:none;transition:opacity .9s var(--ease-out),transform .9s var(--ease-out);transition-delay:calc(var(--i,0) * 70ms)}
+}
+@keyframes vt-scrub{from{opacity:0;transform:translateY(30px) scale(.99);clip-path:inset(0 0 20% 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+@supports (animation-timeline: scroll()){
+  .progress{animation:vt-grow linear both;animation-timeline:scroll(root block)}
+}
+@keyframes vt-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@supports (animation-timeline: view()){
+  .band>img{animation:vt-drift linear both;animation-timeline:view();animation-range:cover;transform:none}
+}
+@keyframes vt-drift{from{translate:0 -5%}to{translate:0 5%}}
+
+/* 联动：鼠标悬停时间线小图 → 旁边浮现大图（CSS 锚点定位，自动避让边缘） ---- */
+.loupe{position:fixed;z-index:50;width:min(26vw,330px);aspect-ratio:3/2;overflow:hidden;opacity:0;
+  pointer-events:none;background:var(--paper-2);box-shadow:var(--lift);border:1px solid rgba(169,138,91,.5);
+  transition:opacity .3s var(--ease),translate .3s var(--ease)}
+.loupe.on{opacity:1;translate:0 -6px}
+.loupe img{width:100%;height:100%;object-fit:cover}
+.loupe .t{position:absolute;inset:auto 0 0;padding:1.8rem var(--s1) var(--s0);font-size:.6875rem;letter-spacing:.1em;
+  color:#fff;background:linear-gradient(rgba(22,17,14,0),rgba(22,17,14,.85));text-shadow:0 1px 8px rgba(22,17,14,.6)}
+@supports (anchor-name: --hp){
+  .loupe{position-anchor:--hp;position-area:top right;position-try-fallbacks:flip-block,flip-inline,flip-start;margin:0 0 12px}
+}
+
+/* 联动：影像页的闪光灯（跟随光标的一小片亮区，强化「放映厅」） ---------- */
+.night{position:relative}
+.night .spot{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .6s var(--ease);
+  background:radial-gradient(360px circle at var(--mx,50%) var(--my,35%),rgba(215,160,138,.16),transparent 68%)}
+.night:hover .spot{opacity:1}
+.night .wrap{position:relative;z-index:1}
+
+/* 联动：首页统计数字本身就是入口 ---------------------------------------- */
+.facts a{display:block;border-top:1px solid transparent;padding-top:2px;transition:border-color .3s,transform .3s var(--ease)}
+.facts a:hover{border-top-color:var(--clay-soft);transform:translateY(-2px)}
+
+/* 动图：视频灯箱里的「让它动起来」按钮 ---------------------------------- */
+.pbar .gif-btn{display:none;letter-spacing:.14em;font-size:.6875rem;padding:0 .8rem;width:auto;height:34px;border-radius:999px}
+.pbar .gif-btn.show{display:grid}
+.pbar .gif-btn.busy{color:var(--on-night-muted)}
+
+/* ===========================================================================
+   v4 手机与安装
+   1 让位：刘海、Home 条、圆角屏的左右安全区一律用 env(safe-area-inset-*)
+   2 视口：手机地址栏会把 vh 吃掉一截，能量高的地方换成 svh
+   3 触控：可点的东西至少 44×44（WCAG 2.5.5），去掉点击灰块与双击缩放带来的 300ms 延迟
+   4 手势：灯箱里左右滑换张、向下滑关闭，全程跟手；不与视频控件、胶片条抢手势
+   5 安装：manifest + 图标 + service worker（浏览器只在 https 或 localhost 下认 sw）
+   =========================================================================== */
+body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+button,a{touch-action:manipulation}
+@supports (height:100svh){.page{min-height:60svh}}
+
+/* 安全区：顶栏长高了，下边的东西跟着走 */
+header.site{padding-top:env(safe-area-inset-top)}
+.progress{top:calc(74px + env(safe-area-inset-top))}
+nav.top{inset:calc(74px + env(safe-area-inset-top)) 0 auto}
+.years,.prose .side{top:calc(110px + env(safe-area-inset-top))}
+.panel-head,.search-field,.chips,.panel-body{
+  padding-left:max(var(--s4),env(safe-area-inset-left));
+  padding-right:max(var(--s4),env(safe-area-inset-right))
+}
+.wrap{max-width:var(--maxw)}
+footer.site .foot{padding-bottom:env(safe-area-inset-bottom)}
+.toast{bottom:calc(36px + env(safe-area-inset-bottom))}
+.pbar{padding-top:calc(var(--s2) + env(safe-area-inset-top))}
+.pbar,.stage{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}
+.stage{padding-top:calc(78px + env(safe-area-inset-top))}
+@media (max-width:700px){
+  .stage{padding:calc(64px + env(safe-area-inset-top)) max(10px,env(safe-area-inset-left)) calc(110px + env(safe-area-inset-bottom))}
+}
+@supports (height:100svh){
+  .collage{height:clamp(360px,58svh,520px)}
+  .band{height:clamp(320px,46svh,460px)}
+}
+
+/* 灯箱手势：只有图片吃拖拽，视频把 gesture 留给自己的控件 */
+.player{overscroll-behavior:none}
+.stage{touch-action:pan-y}
+.stage .lay>img{touch-action:none;will-change:transform}
+/* 手势甩出去的那一张：动画要让位给 JS 写的位移，不然会被 lay-in 拽回来 */
+.stage .lay.flung,.stage .lay.flung.out{animation:none}
+
+/* 触控目标与反馈 */
+@media (pointer:coarse){
+  .icon-btn{width:44px;height:44px}
+  .pbar .gif-btn{width:auto;min-width:64px;height:44px}
+  .nav-arrow{width:48px;height:48px}
+  .pbar a,.pbar button{width:44px;height:44px}
+  .chip{padding:.6rem 1.05rem}
+  .more button{padding:.9rem 2.2rem}
+  .years button{padding:.7rem 0}
+  .strip-bar button{width:66px;height:46px}
+  .rail,.strip,.strip-bar,.years{scrollbar-width:none}
+  .rail::-webkit-scrollbar,.strip::-webkit-scrollbar,.strip-bar::-webkit-scrollbar,.years::-webkit-scrollbar{display:none}
+  /* 悬停才出现的东西在触屏上永远不出现，那就别占着位 */
+  .month .lab .go{display:none}
+}
+/* 没有 hover 的设备：原本“鼠标扫过才看得到”的信息直接常显 */
+@media (hover:none){
+  .tile .pic::after,.tile .float{opacity:1;transform:none}
+  .masonry figcaption{opacity:1}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .rv,.fade{opacity:1;transform:none}
+  .wipe,.scrub{clip-path:none;opacity:1;transform:none}
+  /* 滚动时间线的动画不看 animation-duration，上面那行通用重置卡不住它，
+     不彻底关掉的话 .scrub 会停在 from 状态（隐身），直到滚进区间才瞬现 */
+  .scrub,.progress{animation:none !important}
+  .collage{--shift:0px !important}
+  .shot>img{transition:none}
+  .tile .pic .layer{transition:none}
+  .band>img{animation:none;transform:translate3d(0,calc(var(--shift) * .5),0)}
+  .stage .lay,.stage .lay.out{animation:none}
+  .stage .lay>img{transition:none}
+  .loupe,.night .spot{display:none}
+  ::view-transition-old(root),::view-transition-new(root),
+  ::view-transition-old(lb-focus),::view-transition-new(lb-focus){animation:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#page">跳到主要内容</a>
+
+<header class="site">
+  <div class="wrap site-in">
+    <a class="brand" href="#/">
+      <span class="mark" aria-hidden="true">家</span>
+      <b>我们的家</b>
+      <span class="sr">家庭影像档案，一共五个页面</span>
+    </a>
+    <nav class="top" id="topnav" aria-label="主导航">
+      <a href="#/"><i>01</i>家</a>
+      <a href="#/albums"><i>02</i>相册</a>
+      <a href="#/timeline"><i>03</i>时间</a>
+      <a href="#/films"><i>04</i>影像</a>
+      <a href="#/about"><i>05</i>关于</a>
+    </nav>
+    <div class="tools">
+      <button class="icon-btn" id="btnSearch" aria-label="搜索照片与视频" title="搜索（按 / 也可以）">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      </button>
+      <button class="icon-btn" id="btnScan" aria-label="重新扫描素材目录" title="重新扫描">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg>
+      </button>
+      <button class="icon-btn burger" id="btnMenu" aria-label="打开菜单" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16M4 16h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<main class="page" id="page"></main>
+
+<footer class="site">
+  <div class="wrap foot">
+    <div class="paths">
+      <p id="footNote">—</p>
+      <p>素材目录 <code id="footRoot">—</code></p>
+    </div>
+    <div class="paths" style="text-align:right">
+      <p>只在家庭内网 · 无账号 · 不上传</p>
+      <p>索引更新于 <span class="num" id="footTime">—</span></p>
+    </div>
+  </div>
+</footer>
+
+<div class="sheet-view" id="sheetView" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="scrim" data-close></div>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="title" id="sheetTitle">—</h2>
+        <p class="sub" id="sheetSub">—</p>
+      </div>
+      <button class="icon-btn close" data-close aria-label="关闭">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="chips" id="sheetChips" role="group" aria-label="筛选"></div>
+    <div class="panel-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<div class="search" id="searchView" role="dialog" aria-modal="true" aria-label="搜索素材">
+  <div class="scrim" data-close></div>
+  <div class="panel">
+    <div class="search-field">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="searchInput" type="search" placeholder="输入日子、文件夹或文件名，如 2020 / 婚纱照 / IMG_" autocomplete="off" aria-label="搜索素材">
+      <button class="icon-btn" data-close aria-label="关闭搜索">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body" id="searchBody"><p class="hint">搜索范围是本机素材目录里的文件名与文件夹名。</p></div>
+  </div>
+</div>
+
+<div class="player" id="player" role="dialog" aria-modal="true" aria-label="查看素材">
+  <div class="stage" id="stage"></div>
+  <div class="pbar">
+    <span class="idx num" id="lbIndex">1 / 1</span>
+    <span class="name" id="lbName">—</span>
+    <span class="sp">
+      <span class="num" id="lbMeta"></span>
+      <button class="icon-btn gif-btn" id="lbGif" aria-label="把这段视频做成循环动图" title="做成循环动图">动图</button>
+      <a id="lbOpen" href="#" target="_blank" rel="noopener" aria-label="在新窗口打开原始文件" title="在新窗口打开原始文件">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M18 14v5H5V6h5"/></svg>
+      </a>
+      <button id="lbClose" aria-label="关闭（Esc）" title="关闭（Esc）">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </span>
+  </div>
+  <button class="nav-arrow prev" id="lbPrev" aria-label="上一个（←）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button class="nav-arrow next" id="lbNext" aria-label="下一个（→）"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div class="strip-bar" id="lbStrip"></div>
+</div>
+
+<div class="loupe" id="loupe" aria-hidden="true"><img alt=""><span class="t"></span></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/app.js"></script>
+</body>
+</html>

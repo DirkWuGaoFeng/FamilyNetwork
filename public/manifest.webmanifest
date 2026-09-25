@@ -1,0 +1,26 @@
+{
+  "name": "我们的家 · 家庭影像档案",
+  "short_name": "我们的家",
+  "description": "家庭影像档案：本机的照片与视频，局域网里直接看。",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "background_color": "#f6f1e9",
+  "theme_color": "#f6f1e9",
+  "categories": ["photo", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "相册", "url": "/#/albums", "description": "按文件夹浏览全部素材" },
+    { "name": "时间", "url": "/#/timeline", "description": "按年月回看" },
+    { "name": "影像", "url": "/#/films", "description": "只看视频" }
+  ]
+}

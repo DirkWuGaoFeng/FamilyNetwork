@@ -1,0 +1,26 @@
+{
+  "name": "family-gallery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "家庭相册网站：直接把电脑里的照片与视频变成可浏览的网页，零数据库、零构建、无登录",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "rescan": "node server/cli.js",
+    "warm": "node server/warm.js",
+    "icons": "node scripts/make-icons.js",
+    "test": "node --test \"test/*.test.js\"",
+    "test:watch": "node --test --watch \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
+    "sharp": "^0.33.5"
+  }
+}
