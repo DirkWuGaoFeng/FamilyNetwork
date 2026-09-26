@@ -82,3 +82,7 @@ Desktop.ini
 
 # 备份脚本写出来的副本，进去的是 .env 与索引，不该进仓库
 backups/
+
+# 首页真实精选清单：里面全是家人名字与真实文件名，只留在自己这台电脑上。
+# 进仓库的是模板 featured.example.txt（规则写法都在那个文件的注释里）
+featured.txt

@@ -139,7 +139,7 @@ New-NetFirewallRule -DisplayName "Family Gallery 8123" -Direction Inbound `
 | --- | --- | --- |
 | **照片、视频与 `bgm/` 音频本体** | **必须，但不归这个站管** | 站只读它们。请另用系统备份 / 网盘 / 移动硬盘，遵循 3-2-1 |
 | `.env` | 要 | 里面是这台机器的路径与端口 |
-| `featured.txt`、`.galleryignore` | 要 | 手写的规则，重不回来 |
+| `featured.txt`、`.galleryignore` | 要 | 手写的规则，重不回来；`featured.txt` 本来就不进仓库，丢了只能照模板重写 |
 | `.cache/index.json`、`.cache/durations.json` | 顺手备 | 重扫 3714 个文件要一两分钟，抽帧时长更久 |
 | `.cache/thumbs`、`.cache/anim` | 不用 | 能重建，只是慢一次 |
 | 代码 | 不用（在 git 里） | 前提是你 push 了 |
@@ -189,6 +189,8 @@ pwsh scripts/gallery.ps1 start
 **改了 `.env` 或 `featured.txt`**：`.env` 必须重启；`featured.txt` 不用，点页面右上角
 刷新按钮（或 `Invoke-RestMethod -Method Post http://127.0.0.1:8123/api/refresh`），
 等扫描完再刷新页面。注意：不刷新、不重开的话，服务内存里还是旧清单。
+新机器上先 `Copy-Item featured.example.txt featured.txt` —— 真实清单不进仓库，
+仓库里只有那份举例子用的模板。
 
 **但重扫不能替代码更新**：`server/` 下的东西改了必须重启
 （`pwsh scripts/gallery.ps1 restart`），除非当初是用 `npm run dev`（`--watch`）起的。
@@ -200,8 +202,8 @@ pwsh scripts/gallery.ps1 start
   前 3 张归左上大格；不满 9 张用最新照片补齐
 - **`@相册名`** → 置顶，把这本相册顶到「相册」页第一格（相片铺满整行那本）与首页相册区最前
 - **`@相册名=封面规则`** → 置顶 + 指定这本相册用哪张当封面。等号后面那段只在
-  **这本相册自己的照片**里找，写完整路径（`@婚纱照=婚纱照/郭丽君/c (69)-1.jpg`）
-  或子文件夹名、文件名的一小段（`@宝宝照片=百天`）都行，取排在最前面那张；
+  **这本相册自己的照片**里找，写完整路径（`@全家福=全家福/2020婚礼/IMG_0001.jpg`）
+  或子文件夹名、文件名的一小段（`@宝宝=百天`）都行，取排在最前面那张；
   只能挑照片，视频的「封面」是带播放键的占位图
 
 都容忍写错：路径命不中就跳过，`@` 后面的相册不存在就当没写，封面规则命不中就用
@@ -311,7 +313,7 @@ systemctl daemon-reload && systemctl enable --now family-gallery
 journalctl -u family-gallery -f
 ```
 
-Docker 也行（`legacy/` 里有旧版 compose 文件可参考），但要注意：容器要能读到
+Docker 也行，但要注意：容器要能读到
 素材目录，并且**别把 `.cache` 写在容器层里**，重建就全没了——挂个卷进去。
 
 ---

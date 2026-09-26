@@ -1,12 +1,15 @@
 /**
  * 站点配置
  *
- * 全部可走环境变量或仓库根的 .env，默认值对应这台机器的实际情况（素材放在 F 盘）。
- * 优先级：命令行环境变量 > .env > 这里的默认值。想换素材目录，只写一行
- * MEDIA_ROOT=d:\\家庭照片 就够了，不用改任何代码。
+ * 全部可走环境变量或仓库根的 .env（把 .env.example 复制一份改改就行）。
+ * 只有 MEDIA_ROOT 故意不给默认值：照片放在哪个盘、叫什么名字，每台机器
+ * 都不一样，写死一个路径只会在别人电脑上扫出一个空目录（还会把这台机器的
+ * 目录结构暴露到仓库里），不如启动时就吵一句。
+ * 优先级：命令行环境变量 > .env > 这里的默认值。
  */
 require('./env').load();
 
+const fs = require('fs');
 const path = require('path');
 
 /**
@@ -22,7 +25,18 @@ function bool(value, fallback) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 }
 
-const root = path.resolve(process.env.MEDIA_ROOT || 'f:\\照片与视频');
+/**
+ * 素材目录：唯一必填项。报错都说清楚下一步做什么，因为看到这条的人
+ * 一般是刚拿到这份代码、还什么都不知道的你或者家人
+ */
+const mediaRoot = (process.env.MEDIA_ROOT || '').trim();
+if (!mediaRoot) {
+  throw new Error('还没告诉网站你的照片在哪：把 .env.example 复制为 .env，填好 MEDIA_ROOT=<素材目录> 再启动（或者直接用命令行变量）');
+}
+const root = path.resolve(mediaRoot);
+if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+  throw new Error(`MEDIA_ROOT 指向的目录不存在或不是一个文件夹：${root}`);
+}
 
 module.exports = {
   /** 素材所在的真实目录，站点的唯一数据源 */

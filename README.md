@@ -7,9 +7,6 @@
 - **无登录**：连上家里 WiFi 就能看（所以：**不要把端口映射到公网**）
 - **只读**：程序只会往 `.cache/` 里写缩略图，一张照片都不会动、不会删
 
-> 早期那套 Vue + MySQL + Redis 的版本在 [`legacy/`](legacy/) 里归档了，
-> 现在跑的是重写后的单进程版本，两者互不影响。
-
 ---
 
 ## 30 秒跑起来
@@ -18,6 +15,7 @@
 
 ```powershell
 npm install
+Copy-Item .env.example .env   # 然后打开 .env，把 MEDIA_ROOT 改成你的照片目录
 npm start
 ```
 
@@ -27,19 +25,15 @@ npm start
   我们的家 · 家庭相册已就绪
   本机访问   http://localhost:8123
   手机/平板  http://192.168.1.20:8123
-  素材目录   f:\照片与视频
+  素材目录   D:\FamilyPhotos
   索引       3714 个素材 / 6 个相册
 ```
 
 第一次启动会完整扫一遍素材目录，几千个文件大概一两分钟，之后每次都用缓存，秒开。
+没填 `MEDIA_ROOT` 就不会启动，它会直接告诉你是哪一项缺——照片在哪个盘只可能你自己知道，
+代码里写死一个默认值只会在别人机器上扫出一个空目录。
 
-**换一台电脑 / 换一个目录**：把仓库根目录的 `.env.example` 复制成 `.env`，改这一行就行：
-
-```
-MEDIA_ROOT=d:\家庭照片
-```
-
-改完重启服务（`Ctrl+C` 再 `npm start`）。全部可选项见下面的[配置表](#配置表)。
+**以后想换目录**：改 `.env` 里那一行就行，不用动代码。全部可选项见下面的[配置表](#配置表)。
 
 ---
 
@@ -83,7 +77,7 @@ MEDIA_ROOT=d:\家庭照片
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `MEDIA_ROOT` | `f:\照片与视频` | 素材目录，唯一数据源，**只读** |
+| `MEDIA_ROOT` | 无，**必填** | 素材目录，唯一数据源，**只读** |
 | `SITE_TITLE` / `SITE_SUBTITLE` | 我们的家 / 照片、视频和一起走过的日子 | 标题与副标题 |
 | `PORT` | `8123` | 端口。被占用时启动器会直接告诉你怎么办 |
 | `HOST` | `0.0.0.0` | `0.0.0.0` 家里其他设备可访问；`127.0.0.1` 只给自己看 |
@@ -101,15 +95,23 @@ MEDIA_ROOT=d:\家庭照片
 
 ### 首页精选（featured.txt）
 
+`featured.txt` **不入库**（里面全是你家人的名字和真实文件名，不该跟着仓库上公网），
+仓库里的是模板：
+
+```powershell
+Copy-Item featured.example.txt featured.txt
+```
+
 一行一条规则，写完整路径或路径里的一段关键字都行，命中的**照片**按行序上首页：
 
 ```
-宝宝照片/IMG_20221030_123722.jpg
-婚纱照/1.8修改/d (2)-1.jpg
+宝宝/IMG_0102.jpg
+全家福/2020婚礼/IMG_0001.jpg
 ```
 
-一条都没命中（或者文件删了）也不会开天窗：自动退回「每本相册封面」。
-改完点右上角刷新按钮即可生效，不用重启。
+三种规则（精选照片 / `@相册名` 置顶 / `@相册名=某张照片` 指定封面）的写法在
+`featured.example.txt` 的注释里逐条写清楚了。一条都没命中（或者文件删了）也不会开天窗：
+自动退回「每本相册封面」。改完点右上角刷新按钮即可生效，不用重启。
 
 ### 哪些文件不要进相册（.galleryignore）
 
@@ -126,7 +128,7 @@ npm start          # 前台启动（Ctrl+C 停），改代码调试时用
 npm run dev        # 同上，带 --watch：改完 server 代码自动重启
 npm run rescan     # 只扫一遍并打印统计，不起服务
 npm run warm       # 把首页与相册封面的缩略图提前生成好（要先起服务，另开一个终端跑）
-npm test           # 29 条测试，全部零依赖、跑独立临时目录，不碰真实照片
+npm test           # 33 条测试，全部零依赖、跑独立临时目录，不碰真实照片
 npm run icons      # 改完图标设计后重新导出各尺寸 png
 
 pwsh scripts/gallery.ps1 start      # 后台启动，日志写 logs/
@@ -153,11 +155,11 @@ server/         Express 单进程
 public/         前端：index.html（含全部样式）+ app.js + 图标 + manifest + sw.js
 test/           零依赖测试（node:test）
 scripts/        运维脚本：后台运行、自启、备份、图标导出
-featured.txt    首页精选清单（可选）
+featured.example.txt 首页精选清单的模板（复制成 featured.txt 再改）
+featured.txt    你自己的精选清单（不入库：里面是真实文件名与家人名字）
 .galleryignore  扫描排除规则
 .env            本地配置（不入库，从 .env.example 复制）
 .cache/         索引与缩略图（不入库，可随便删）
-legacy/         旧版 Vue + MySQL 实现与历史文档，只作归档
 ```
 
 ---
@@ -195,7 +197,6 @@ legacy/         旧版 Vue + MySQL 实现与历史文档，只作归档
 
 - [docs/usage.md](docs/usage.md) —— 给家里人看的使用说明（可以直接发群里）
 - [docs/operations.md](docs/operations.md) —— 开机自启、备份、升级、防火墙、性能与故障排查
-- [legacy/docs/](legacy/docs/) —— 旧版（Vue/MySQL）的设计与部署文档，仅作历史保留
 
 ## 许可
 
