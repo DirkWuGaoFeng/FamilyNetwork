@@ -258,7 +258,7 @@ test('置顶相册：@ 开头的行只管顺序，不被当成精选照片，名
 
 test('相册封面：@相册名=规则 指定用哪张，命不中退回自动挑的那张', async () => {
   const svc = await startTestServer({
-    featured: ['@婚礼=婚礼/2019-10-06 仪式.png', '@日常=午饭', '@大宝=根本不存在的东西'].join('\n')
+    featured: ['@婚礼=婚礼/2019-10-06 仪式.png', '@日常=午饭', '@不存在=根本不存在的东西'].join('\n')
   });
   try {
     const res = await get(svc.base, '/api/site');
@@ -272,15 +272,15 @@ test('相册封面：@相册名=规则 指定用哪张，命不中退回自动�
     assert.equal(byName.get('未分类').cover.path, 'IMG_rootless.png');
     // 指定封面顺带置顶（不然在已有的 @婚礼 行后面加个 =… 会把置顶弄丢）
     assert.deepEqual(res.body.albums.map((a) => a.name), ['婚礼', '日常', '未分类']);
-    assert.deepEqual(res.body.covers, ['婚礼', '日常', '大宝'], '哪几本是人指定的，回传便于排查');
+    assert.deepEqual(res.body.covers, ['婚礼', '日常', '不存在'], '哪几本是人指定的，回传便于排查');
     // 等号后面那段不算精选规则，否则首页拼贴会被它多占一个位置
     const feat = await get(svc.base, '/api/featured');
     assert.equal(feat.body.rules, 0);
     // 规则落空时得有人说一句：不然「改了没反应」只能猜是哪一行写错了。
-    // 这里只有 @大宝 那行点不到东西（夹具里没有这本相册），婚礼和日常都该静默
+    // 这里只有 @不存在 那行点不到东西（夹具里没有这本相册），婚礼和日常都该静默
     const problems = svc.app.__internals.auditFeaturedRules();
-    assert.equal(problems.length, 1, `只该有 @大宝 那行落空：${problems.join(' | ')}`);
-    assert.ok(problems[0].includes('大宝'), problems[0]);
+    assert.equal(problems.length, 1, `只该有 @不存在 那行落空：${problems.join(' | ')}`);
+    assert.ok(problems[0].includes('不存在'), problems[0]);
   } finally {
     await svc.close();
   }

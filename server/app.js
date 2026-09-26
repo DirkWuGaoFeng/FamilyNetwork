@@ -135,7 +135,7 @@ async function loadFeatured() {
 
 /**
  * 一条规则在给定素材里找第一个命中的：完整相对路径、文件名，或路径里的片段
- * （写「婚纱照/郭丽君」也能命中，取的是排在前面的那张）。
+ * （写「相册名/子文件夹」这种片段也能命中，取的是排在前面的那张）。
  * @param {Array<object>} pool 候选素材
  * @param {string} rule 规则原文
  * @param {Set<string>} [skip] 已经用过的路径，不再重复上榜
